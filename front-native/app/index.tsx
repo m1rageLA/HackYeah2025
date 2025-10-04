@@ -1,14 +1,19 @@
 ﻿import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { cssInterop } from 'nativewind';
 import React from 'react';
 import {
   SafeAreaView,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+const StyledYourComponent = cssInterop(LinearGradient, {
+  className: 'style',
+});
 
 export default function WelcomeScreen() {
   return (
@@ -16,29 +21,49 @@ export default function WelcomeScreen() {
       colors={['#002861', '#050B16']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient}>
+      className="flex-1"
+    >
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.content}>
-          <View style={styles.logoContainer}>
-            <View style={styles.logoBackground}>
-              <MaterialCommunityIcons name="shield-outline" size={56} color="#E7F1FF" />
+      <SafeAreaView className="flex-1">
+        <View className="flex-1 items-center justify-center gap-12 px-8">
+          <View className="items-center gap-5">
+            <View className="h-[120px] w-[120px] items-center justify-center rounded-[30px] bg-[rgba(24,48,96,0.7)]">
+              <MaterialCommunityIcons
+                name="shield-outline"
+                size={56}
+                color="#E7F1FF"
+              />
             </View>
-            <Text style={styles.title}>CiviSafe</Text>
-            <Text style={styles.subtitle}>Bezpieczne Raporty Obywatelskie</Text>
+            <Text className="text-4xl font-bold text-[#F8FBFF]">CiviSafe</Text>
+            <Text className="text-base text-[#C6D4E5]">
+              Bezpieczne Raporty Obywatelskie
+            </Text>
           </View>
 
-          <View style={styles.actions}>
-            <TouchableOpacity activeOpacity={0.85} style={[styles.button, styles.primaryButton]}>
-              <View style={styles.primaryButtonInner}>
-                <View style={styles.flagBadge}>
-                  <Text style={styles.flagInitials}>PL</Text>
+          <View className="w-[90%] gap-[20px]">
+            <TouchableOpacity
+              activeOpacity={0.85}
+              className="h-14 justify-center rounded-[18px] bg-[rgba(3,31,78,0.9)]"
+            >
+              <View className="flex-row items-center justify-center gap-3">
+                <View className="h-[34px] w-[34px] items-center justify-center rounded-[8px] bg-[#D71920]">
+                  <Image
+                    source={require('../assets/images/mobywatel_icon.png')}
+                    style={{ width: 28, height: 28, borderRadius: 6 }}
+                  />
                 </View>
-                <Text style={styles.primaryButtonText}>mObywatel</Text>
+                <Text className="text-lg font-semibold text-[#F5F8FF]">
+                  mObywatel
+                </Text>
               </View>
             </TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.85} style={[styles.button, styles.secondaryButton]}>
-              <Text style={styles.secondaryButtonText}>numer telefonu</Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              className="h-14 justify-center rounded-[18px] bg-[#F0F3FA]"
+            >
+              <Text className="text-center text-lg font-semibold text-[#0F1C2E]">
+                numer telefonu
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -46,85 +71,3 @@ export default function WelcomeScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 48,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    gap: 20,
-  },
-  logoBackground: {
-    backgroundColor: 'rgba(24, 48, 96, 0.7)',
-    width: 120,
-    height: 120,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: '#F8FBFF',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#C6D4E5',
-  },
-  actions: {
-    width: '100%',
-    gap: 16,
-  },
-  button: {
-    borderRadius: 18,
-    height: 56,
-    justifyContent: 'center',
-  },
-  primaryButton: {
-    backgroundColor: 'rgba(3, 31, 78, 0.9)',
-  },
-  primaryButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  flagBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: '#D71920',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  flagInitials: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F5F7FF',
-  },
-  primaryButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#F5F8FF',
-  },
-  secondaryButton: {
-    backgroundColor: '#F0F3FA',
-  },
-  secondaryButtonText: {
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#0F1C2E',
-  },
-});
