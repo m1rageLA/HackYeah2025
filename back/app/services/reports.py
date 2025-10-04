@@ -9,6 +9,21 @@ from ..repositories.protocols import ReportRepository
 from ..schemas.report import Report, ReportCreate
 
 
+class ReportService:
+    """High-level operations for report resources."""
+
+    def __init__(self, repository: ReportRepository) -> None:
+        self._repository = repository
+
+    def create_report(self, payload: ReportCreate, reporter_id: Optional[str]) -> Report:
+        """Persist a new report via the configured repository."""
+        return self._repository.create(payload, reporter_id)
+
+    def list_reports(self) -> List[Report]:
+        """Fetch reports via the configured repository."""
+        return self._repository.list()
+
+
 @lru_cache
 def get_report_repository() -> ReportRepository:
     """Return the configured report repository implementation."""
@@ -18,13 +33,7 @@ def get_report_repository() -> ReportRepository:
     raise RuntimeError(f"Unsupported reports backend: {backend}")
 
 
-def create_report(payload: ReportCreate, reporter_id: Optional[str]) -> Report:
-    """Persist a new report via the configured repository."""
-    repository = get_report_repository()
-    return repository.create(payload, reporter_id)
-
-
-def list_reports() -> List[Report]:
-    """Fetch reports via the configured repository."""
-    repository = get_report_repository()
-    return repository.list()
+@lru_cache
+def get_report_service() -> ReportService:
+    """Return a singleton report service instance."""
+    return ReportService(get_report_repository())
