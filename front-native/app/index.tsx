@@ -16,6 +16,7 @@ const GradientBackground = cssInterop(LinearGradient, {
 export const LOCATION_COMPONENT = 'location_comp';
 export const EVIDENCE_COMPONENT = 'evidence_comp';
 export const DESCRIPTION_COMPONENT = 'description_comp';
+export const TIME_COMPONENT = 'time_comp';
 
 export const ARMED_SOLIDERS = 'armed_soldiers';
 
@@ -24,11 +25,8 @@ const categoryReportMap: Record<string, FormData> = {
     data: {},
     componentsIdentifiers: [
       LOCATION_COMPONENT,
-      LOCATION_COMPONENT,
       EVIDENCE_COMPONENT,
-      EVIDENCE_COMPONENT,
-      EVIDENCE_COMPONENT,
-      EVIDENCE_COMPONENT,
+      TIME_COMPONENT,
     ],
     componentIndex: 0,
   },

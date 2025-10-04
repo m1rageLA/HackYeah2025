@@ -10,10 +10,12 @@ import {
   DESCRIPTION_COMPONENT,
   EVIDENCE_COMPONENT,
   LOCATION_COMPONENT,
+  TIME_COMPONENT,
 } from '../index';
 import LocationReportComponet from '@/components/categoryComponets/LocationReportComponet';
 import EvidenceReportComponent from '@/components/categoryComponets/EvidenceReportComponet';
 import DescriptionReportComponent from '@/components/categoryComponets/DescriptionReportComponent';
+import TimeReportComponent from '@/components/categoryComponets/TimeReportComponent';
 
 const GradientBackground = cssInterop(LinearGradient, {
   className: 'style',
@@ -47,6 +49,7 @@ export default function ReportLocationScreen() {
       [DESCRIPTION_COMPONENT]: (
         <DescriptionReportComponent onContinue={handleContinue} />
       ),
+      [TIME_COMPONENT]: <TimeReportComponent onContinue={handleContinue} />,
     };
   }, [handleContinue]);
 
@@ -67,7 +70,7 @@ export default function ReportLocationScreen() {
           <View className="flex-row items-center justify-between pt-4">
             <TouchableOpacity
               accessibilityLabel="Powrót"
-              className="h-10 w-10 items-center justify-center rounded-xl bg-[rgba(9,24,46,0.75)]"
+              className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
               activeOpacity={0.85}
               onPress={() => {
                 if (data.componentIndex === 0) {
@@ -82,7 +85,7 @@ export default function ReportLocationScreen() {
               <MaterialCommunityIcons
                 name="arrow-left"
                 size={22}
-                color="#F3F7FF"
+                color="#F5F8FF"
               />
             </TouchableOpacity>
             <View className="flex-1 pl-4">
