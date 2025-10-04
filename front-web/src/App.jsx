@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import MapView from './MapView.jsx'
+import MapView, { reports } from './MapView.jsx'
 import './App.css'
 
 function IconGlobe() {
@@ -113,7 +113,7 @@ function App() {
 
   const handleConfirmDispatch = () => {
     setDispatchContext(null)
-    window.alert('Службам передана информация')
+    window.alert('Zgłoszenie przekazane do służb')
   }
 
   return (
@@ -123,8 +123,8 @@ function App() {
           className="icon-button"
           type="button"
           disabled
-          aria-label="Language placeholder"
-          title="Language placeholder"
+          aria-label="Wybór języka (w przygotowaniu)"
+          title="Wybór języka (w przygotowaniu)"
         >
           <IconGlobe />
         </button>
@@ -133,8 +133,8 @@ function App() {
           className="icon-button"
           type="button"
           onClick={() => setIsInfoOpen(true)}
-          aria-label="Information"
-          title="Information"
+          aria-label="Informacje"
+          title="Informacje"
         >
           <IconInfo />
         </button>
@@ -143,9 +143,9 @@ function App() {
           className={`icon-button${!isMeasuring ? ' active' : ''}`}
           type="button"
           onClick={handleDisableMeasure}
-          aria-label="Панорамирование"
+          aria-label="Tryb nawigacji"
           aria-pressed={!isMeasuring}
-          title="Стандартный режим"
+          title="Tryb podstawowy"
         >
           <IconHand />
         </button>
@@ -154,9 +154,9 @@ function App() {
           className={`icon-button${isMeasuring ? ' active' : ''}`}
           type="button"
           onClick={handleToggleMeasure}
-          aria-label={isMeasuring ? 'Завершить замер' : 'Начать замер'}
+          aria-label={isMeasuring ? 'Zakończ pomiar' : 'Rozpocznij pomiar'}
           aria-pressed={isMeasuring}
-          title={isMeasuring ? 'Завершить замер' : 'Начать замер'}
+          title={isMeasuring ? 'Zakończ pomiar' : 'Rozpocznij pomiar'}
         >
           <IconRuler />
         </button>
@@ -164,8 +164,14 @@ function App() {
 
       <main className="map-area">
         <div className="brand-badge">
-          <p className="brand-kicker">Rapid Response</p>
-          <h1 className="brand-title">Incident Desk</h1>
+          <p className="brand-kicker">Szybka reakcja</p>
+          <h1 className="brand-title">Centrum incydentów</h1>
+          <div className={`mode-status${isMeasuring ? ' measuring' : ''}`} role="status" aria-live="polite">
+            <span className="mode-status-label">Tryb</span>
+            <span className="mode-status-value">
+              {isMeasuring ? 'Pomiar odległości' : 'Nawigacja ręczna'}
+            </span>
+          </div>
         </div>
         <MapView
           isMeasuring={isMeasuring}
@@ -174,22 +180,44 @@ function App() {
         />
       </main>
 
+      <aside className="reports-panel">
+        <div className="reports-header">
+          <h2>Raporty terenowe</h2>
+          <p>Aktualne zgłoszenia według priorytetu</p>
+        </div>
+        <ul className="reports-list">
+          {reports.map((report) => (
+            <li key={report.id} className="reports-list-item" style={{ '--priority-color': report.priorityColor }}>
+              <span className="reports-priority-indicator" aria-hidden="true" />
+              <div className="reports-item-content">
+                <h3>{report.title}</h3>
+                <p className="reports-item-meta">
+                  <span className="reports-item-priority">{report.priority}</span>
+                  <span>{report.city}</span>
+                </p>
+              </div>
+              <span className="reports-item-time">{report.lastSeen}</span>
+            </li>
+          ))}
+        </ul>
+      </aside>
+
       {isInfoOpen && (
         <div className="modal-overlay" role="dialog" aria-modal="true" onClick={() => setIsInfoOpen(false)}>
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <h2>How to use this map</h2>
+            <h2>Jak korzystać z mapy</h2>
             <ul className="modal-list">
-              <li>Review the incident pins to understand what the field teams are reporting.</li>
-              <li>Open a pin to view the incident summary, threat type, and recommended services.</li>
+              <li>Przeglądaj pinezki incydentów, aby zrozumieć zgłoszenia zespołów terenowych.</li>
+              <li>Otwórz pinezkę, by zobaczyć podsumowanie zagrożenia oraz sugerowane służby.</li>
               <li>
-                Use the ruler to measure distance between two points — ideal for checking approach routes or
-                nearest units.
+                Użyj linijki, aby zmierzyć dystans między punktami — to pomaga ocenić trasy podejścia lub
+                najbliższe jednostki.
               </li>
-              <li>Dispatch actions are placeholders for future integrations with police and fire systems.</li>
-              <li>Language switching is planned; English is used for the shared operating picture for now.</li>
+              <li>Przyciski kierowania to na razie makiety przed integracją z systemami policji i straży.</li>
+              <li>Przełączanie języka jest w planach; obecnie widok operacyjny dostępny jest po polsku.</li>
             </ul>
             <button className="ghost-button" type="button" onClick={() => setIsInfoOpen(false)}>
-              Close
+              Zamknij
             </button>
           </div>
         </div>
@@ -203,30 +231,30 @@ function App() {
           onClick={handleCloseDispatch}
         >
           <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <h2>Подтверждение направления</h2>
+            <h2>Potwierdzenie wysłania</h2>
             <div className="dispatch-summary">
               <h3>{dispatchContext.report.title}</h3>
               <p>
-                Локация: <strong>{dispatchContext.report.city}</strong>
+                Lokalizacja: <strong>{dispatchContext.report.city}</strong>
               </p>
               <p>
-                Инцидент: <strong>{dispatchContext.report.incident}</strong>
+                Incydent: <strong>{dispatchContext.report.incident}</strong>
               </p>
               <p>
-                Тип вооружения: <strong>{dispatchContext.report.weaponType}</strong>
+                Typ uzbrojenia: <strong>{dispatchContext.report.weaponType}</strong>
               </p>
               <p>
-                Последнее наблюдение: <strong>{dispatchContext.report.lastSeen}</strong>
+                Ostatnia obserwacja: <strong>{dispatchContext.report.lastSeen}</strong>
               </p>
-              <p>Служба: {dispatchContext.service}</p>
-              <p>Комментарий: {dispatchContext.report.note}</p>
+              <p>Służba: {dispatchContext.service}</p>
+              <p>Notatka: {dispatchContext.report.note}</p>
             </div>
             <div className="modal-actions">
               <button className="ghost-button" type="button" onClick={handleCloseDispatch}>
-                Отмена
+                Anuluj
               </button>
               <button className="modal-primary-button" type="button" onClick={handleConfirmDispatch}>
-                Подтвердить
+                Potwierdź
               </button>
             </div>
           </div>

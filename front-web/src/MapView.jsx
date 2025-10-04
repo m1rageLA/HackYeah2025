@@ -12,42 +12,48 @@ import {
 } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const reports = [
+export const reports = [
   {
     id: 1,
     lat: 52.2297,
     lng: 21.0145,
-    title: 'Warsaw Logistics Hub',
+    title: 'Warszawski węzeł logistyczny',
     city: 'Warszawa',
     incident: 'Ludzie z bronią',
     weaponType: 'Ciężki sprzęt',
     lastSeen: '30 minut temu',
     note: 'Konwój ustawiony w pobliżu wschodniej drogi serwisowej. Jednostki lokalne zgłaszają ciężki sprzęt i uzbrojony personel.',
     services: ['Policja', 'Straż Pożarna'],
+    priority: 'Krytyczny',
+    priorityColor: '#f87171',
   },
   {
     id: 2,
     lat: 51.0647,
     lng: 19.945,
-    title: 'Old Town Transit Depot',
+    title: 'Zajezdnia Stare Miasto',
     city: 'Kraków',
     incident: 'Ludzie z bronią',
     weaponType: 'Ciężki sprzęt',
     lastSeen: '30 minut temu',
     note: 'Cywile zgłaszają kolumnę opancerzoną przemieszczającą się w pobliżu infrastruktury tramwajowej. Tłumy pozostają w schronieniu.',
     services: ['Policja', 'Straż Pożarna'],
+    priority: 'Wysoki',
+    priorityColor: '#fb923c',
   },
   {
     id: 3,
     lat: 51.1079,
     lng: 17.0385,
-    title: 'Industrial Perimeter Gate',
+    title: 'Brama strefy przemysłowej',
     city: 'Wrocław',
     incident: 'Ludzie z bronią',
     weaponType: 'Ciężki sprzęt',
     lastSeen: '30 minut temu',
     note: 'Dron zwiadowczy potwierdził obecność opancerzonych pojazdów utrzymujących pozycję przy zachodniej bramie załadunkowej.',
     services: ['Policja', 'Straż Pożarna'],
+    priority: 'Średni',
+    priorityColor: '#facc15',
   },
 ]
 
@@ -161,21 +167,21 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
   const measurementStatus = useMemo(() => {
     if (isMeasuring) {
       if (!measurement) {
-        return 'Укажите начальную точку на карте, чтобы начать замер.'
+        return 'Wskaż punkt początkowy na mapie, aby rozpocząć pomiar.'
       }
 
       if (measurement.distance == null) {
-        return 'Выберите точку назначения, чтобы завершить замер.'
+        return 'Wybierz punkt docelowy, aby zakończyć pomiar.'
       }
 
-      return `Дистанция: ${formattedDistance}`
+      return `Dystans: ${formattedDistance}`
     }
 
     if (measurement && measurement.distance != null) {
-      return `Последний замер: ${formattedDistance}`
+      return `Ostatni pomiar: ${formattedDistance}`
     }
 
-    return 'Откройте точку, чтобы увидеть сводку, или включите линейку для планирования маршрута.'
+    return 'Otwórz zgłoszenie, aby zobaczyć szczegóły, albo włącz linijkę, by zaplanować trasę.'
   }, [formattedDistance, isMeasuring, measurement])
 
   const distanceIcon = useMemo(() => {
@@ -202,7 +208,7 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
       <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+          attribution="&copy; OpenStreetMap współtwórcy &copy; CARTO"
         />
 
         <ZoomControl position="topright" />
@@ -249,21 +255,21 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
                 <h3>{report.title}</h3>
                 <div className="popup-details">
                   <div className="popup-detail">
-                    <span>Какой инцидент</span>
+                    <span>Rodzaj incydentu</span>
                     <p>{report.incident}</p>
                   </div>
                   <div className="popup-detail">
-                    <span>Тип оружия</span>
+                    <span>Typ uzbrojenia</span>
                     <p>{report.weaponType}</p>
                   </div>
                   <div className="popup-detail">
-                    <span>Когда видели последний раз</span>
+                    <span>Ostatnia obserwacja</span>
                     <p>{report.lastSeen}</p>
                   </div>
                 </div>
                 <p className="popup-note">{report.note}</p>
                 <div className="popup-actions">
-                  <span>Направить в</span>
+                  <span>Skieruj do</span>
                   <div className="popup-action-buttons">
                     {report.services.map((service) => (
                       <button
