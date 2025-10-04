@@ -13,11 +13,17 @@ from .config import get_settings
 def _load_credentials() -> credentials.Certificate:
     settings = get_settings()
     credential_path = settings.firebase_credentials_path()
-    if not credential_path or not credential_path.exists():
-        raise RuntimeError(
-            "Firebase credentials file is not configured. Set FIREBASE_CREDENTIALS_FILE in the environment."
-        )
-    return credentials.Certificate(str(credential_path))
+    if credential_path and credential_path.exists():
+        return credentials.Certificate(str(credential_path))
+
+    credential_dict = settings.firebase_credentials_dict()
+    if credential_dict:
+        return credentials.Certificate(credential_dict)
+
+    raise RuntimeError(
+        "Firebase credentials are not configured. Provide FIREBASE_CREDENTIALS_FILE or the individual service-account fields."
+    )
+
 
 
 def get_firebase_app() -> firebase_admin.App:
@@ -31,6 +37,7 @@ def get_firebase_app() -> firebase_admin.App:
         if settings.firebase_project_id:
             options = {"projectId": settings.firebase_project_id}
         return firebase_admin.initialize_app(cred, options)
+
 
 
 def get_firestore_client() -> firestore.Client:
