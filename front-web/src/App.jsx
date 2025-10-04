@@ -1,6 +1,20 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import MapView, { reports } from './MapView.jsx'
 import './App.css'
+
+const PRIORITY_ORDER = {
+  red: 0,
+  orange: 1,
+  yellow: 2,
+  gray: 3,
+}
+
+const PRIORITY_LABELS = {
+  red: 'Krytyczne zgłoszenia',
+  orange: 'Wysokie zgłoszenia',
+  yellow: 'Średnie zgłoszenia',
+  gray: 'Niskie zgłoszenia',
+}
 
 function IconGlobe() {
   return (
@@ -87,6 +101,57 @@ function App() {
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isMeasuring, setIsMeasuring] = useState(false)
   const [dispatchContext, setDispatchContext] = useState(null)
+  const [sortMode, setSortMode] = useState('priority')
+  const [activeFilters, setActiveFilters] = useState(['red', 'orange', 'yellow', 'gray'])
+
+  const priorityStyles = useMemo(() => {
+    return reports.reduce((acc, report) => {
+      if (!acc[report.priorityKey]) {
+        acc[report.priorityKey] = report.priorityColor
+      }
+      return acc
+    }, {})
+  }, [reports])
+
+  const toggleFilter = (priorityKey) => {
+    setActiveFilters((prev) => {
+      if (prev.includes(priorityKey)) {
+        return prev.filter((item) => item !== priorityKey)
+      }
+      return [...prev, priorityKey]
+    })
+  }
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => activeFilters.includes(report.priorityKey))
+  }, [activeFilters])
+
+  const sortedReports = useMemo(() => {
+    const items = [...filteredReports]
+
+    if (sortMode === 'reputation') {
+      items.sort((a, b) => b.reputation - a.reputation)
+    } else if (sortMode === 'time') {
+      items.sort((a, b) => a.lastSeenMinutes - b.lastSeenMinutes)
+    } else {
+      items.sort((a, b) => {
+        const orderDiff = PRIORITY_ORDER[a.priorityKey] - PRIORITY_ORDER[b.priorityKey]
+        if (orderDiff !== 0) {
+          return orderDiff
+        }
+        return a.lastSeenMinutes - b.lastSeenMinutes
+      })
+    }
+
+    return items
+  }, [filteredReports, sortMode])
+
+  const sortDescription =
+    sortMode === 'reputation'
+      ? 'Posortowane według reputacji służb'
+      : sortMode === 'time'
+        ? 'Posortowane według czasu ostatniego zgłoszenia'
+        : 'Aktualne zgłoszenia według priorytetu'
 
   const handleToggleMeasure = () => {
     setIsMeasuring((prev) => {
@@ -183,10 +248,52 @@ function App() {
       <aside className="reports-panel">
         <div className="reports-header">
           <h2>Raporty terenowe</h2>
-          <p>Aktualne zgłoszenia według priorytetu</p>
+          <p>{sortDescription}</p>
+          <div className="reports-controls">
+            <div className="reports-control-group" role="group" aria-label="Sortowanie zgłoszeń">
+              <button
+                type="button"
+                className={`reports-sort-chip${sortMode === 'priority' ? ' active' : ''}`}
+                onClick={() => setSortMode('priority')}
+                aria-pressed={sortMode === 'priority'}
+              >
+                Priorytet
+              </button>
+              <button
+                type="button"
+                className={`reports-sort-chip${sortMode === 'time' ? ' active' : ''}`}
+                onClick={() => setSortMode('time')}
+                aria-pressed={sortMode === 'time'}
+              >
+                Czas
+              </button>
+              <button
+                type="button"
+                className={`reports-sort-chip${sortMode === 'reputation' ? ' active' : ''}`}
+                onClick={() => setSortMode('reputation')}
+                aria-pressed={sortMode === 'reputation'}
+              >
+                Reputacja
+              </button>
+            </div>
+            <div className="reports-filter-group" role="group" aria-label="Filtr priorytetów">
+              {Object.keys(PRIORITY_ORDER).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`reports-filter-dot${activeFilters.includes(key) ? ' active' : ''}`}
+                  onClick={() => toggleFilter(key)}
+                  aria-pressed={activeFilters.includes(key)}
+                  aria-label={PRIORITY_LABELS[key]}
+                  title={PRIORITY_LABELS[key]}
+                  style={{ '--priority-color': priorityStyles[key] }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
         <ul className="reports-list">
-          {reports.map((report) => (
+          {sortedReports.map((report) => (
             <li key={report.id} className="reports-list-item" style={{ '--priority-color': report.priorityColor }}>
               <span className="reports-priority-indicator" aria-hidden="true" />
               <div className="reports-item-content">
@@ -195,6 +302,7 @@ function App() {
                   <span className="reports-item-priority">{report.priority}</span>
                   <span>{report.city}</span>
                 </p>
+                <p className="reports-item-rating">Reputacja: {report.reputation.toFixed(1)} / 5</p>
               </div>
               <span className="reports-item-time">{report.lastSeen}</span>
             </li>
