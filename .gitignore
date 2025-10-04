@@ -157,3 +157,7 @@ out/
 
 # Dependency directories
 bower_components/
+# Secrets
+back/secrets/*
+!back/secrets/.gitkeep
+
