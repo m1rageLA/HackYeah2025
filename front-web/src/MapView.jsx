@@ -1,322 +1,314 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useMemo, useRef } from 'react'
 import L from 'leaflet'
 import {
-  CircleMarker,
   MapContainer,
   Marker,
-  Popup,
+  Pane,
+  Polygon,
   Polyline,
+  Popup,
   TileLayer,
-  useMapEvents,
   ZoomControl,
 } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
-export const reports = [
-  {
-    id: 1,
-    lat: 52.2297,
-    lng: 21.0145,
-    title: 'Warszawski węzeł logistyczny',
-    city: 'Warszawa',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Konwój ustawiony w pobliżu wschodniej drogi serwisowej. Jednostki lokalne zgłaszają ciężki sprzęt i uzbrojony personel.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Krytyczny',
-    priorityColor: '#f87171',
-    priorityKey: 'red',
-    reputation: 4.8,
-    lastSeenMinutes: 30,
-  },
-  {
-    id: 2,
-    lat: 51.0647,
-    lng: 19.945,
-    title: 'Zajezdnia Stare Miasto',
-    city: 'Kraków',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Cywile zgłaszają kolumnę opancerzoną przemieszczającą się w pobliżu infrastruktury tramwajowej. Tłumy pozostają w schronieniu.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Wysoki',
-    priorityColor: '#fb923c',
-    priorityKey: 'orange',
-    reputation: 4.2,
-    lastSeenMinutes: 45,
-  },
-  {
-    id: 3,
-    lat: 51.1079,
-    lng: 17.0385,
-    title: 'Brama strefy przemysłowej',
-    city: 'Wrocław',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Dron zwiadowczy potwierdził obecność opancerzonych pojazdów utrzymujących pozycję przy zachodniej bramie załadunkowej.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Średni',
-    priorityColor: '#facc15',
-    priorityKey: 'yellow',
-    reputation: 3.6,
-    lastSeenMinutes: 65,
-  },
-  {
-    id: 4,
-    lat: 52.4064,
-    lng: 16.9252,
-    title: 'Punkt koordynacji służb pomocniczych',
-    city: 'Poznań',
-    incident: 'Wsparcie logistyczne',
-    weaponType: 'Brak',
-    lastSeen: '90 minut temu',
-    note: 'Zespół logistyczny zgłasza potrzebę monitorowania ruchu ewakuacyjnego. Sytuacja stabilna, wymagana jedynie obserwacja.',
-    services: ['Straż Pożarna'],
-    priority: 'Niski',
-    priorityColor: '#94a3b8',
-    priorityKey: 'gray',
-    reputation: 4.9,
-    lastSeenMinutes: 90,
-  },
-]
+const mapCenter = [52.1, 23.4]
+const mapZoom = 6.6
 
-const mapCenter = [52.069167, 19.480556]
-const mapZoom = 7
+const TANK_SVG = `
+  <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="5" y="22" width="38" height="12" rx="5" ry="5" fill="currentColor" />
+    <rect x="14" y="15" width="18" height="9" rx="4" ry="4" fill="currentColor" />
+    <rect x="31" y="20" width="12" height="4" rx="2" ry="2" fill="currentColor" />
+    <circle cx="14" cy="35" r="5" fill="#0f172a" />
+    <circle cx="34" cy="35" r="5" fill="#0f172a" />
+  </svg>
+`
 
-function MeasureController({ isMeasuring, onUpdatePoints }) {
-  const map = useMapEvents({
-    click(event) {
-      if (!isMeasuring) {
-        return
-      }
+const INFANTRY_SVG = `
+  <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="24" cy="14" r="6" fill="currentColor" />
+    <path d="M16 44l8-14 8 14M24 20v10" stroke="#0f172a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M12 28l12-6 12 6" stroke="#0f172a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+`
 
-      const sourceClassName = event.propagatedFrom?.options?.className
-      if (typeof sourceClassName === 'string' && sourceClassName.includes('incident-marker')) {
-        return
-      }
-
-      const originalTarget = event.originalEvent?.target
-      if (originalTarget && originalTarget.closest('.incident-marker')) {
-        return
-      }
-
-      onUpdatePoints((prev) => {
-        if (prev.length === 0) {
-          return [event.latlng]
-        }
-        if (prev.length === 1) {
-          return [prev[0], event.latlng]
-        }
-        return [event.latlng]
-      })
-    },
-  })
-
-  useEffect(() => {
-    const container = map.getContainer()
-    container.style.cursor = isMeasuring ? 'crosshair' : ''
-
-    return () => {
-      container.style.cursor = ''
-    }
-  }, [map, isMeasuring])
-
-  useEffect(() => {
-    if (!isMeasuring) {
-      onUpdatePoints([])
-    }
-  }, [isMeasuring, onUpdatePoints])
-
-  return null
+const statusLabel = {
+  frontline: 'Линия',
+  attacking: 'Атака',
+  reorganizing: 'Резерв',
+  exhausted: 'Измотаны',
+  entrenched: 'Укреплены',
+  probing: 'Разведка',
+  reserve: 'Резерв',
+  resupplying: 'Подвоз',
 }
 
-function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
-  const [measurePoints, setMeasurePoints] = useState([])
+const sanitize = (value) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
 
-  useEffect(() => {
-    if (!isMeasuring) {
-      setMeasurePoints([])
+const getDivisionIconMarkup = (division, isSelected) => {
+  const svg = division.type === 'armor' ? TANK_SVG : INFANTRY_SVG
+  const factionClass = division.faction === 'enemy' ? 'division-icon--enemy' : 'division-icon--friendly'
+  const selectedClass = isSelected ? ' division-icon--selected' : ''
+  const statusClass = division.status ? ` division-icon--status-${division.status}` : ''
+  const strength = sanitize(Math.round(division.strength))
+  const org = sanitize(Math.round(division.organization))
+
+  return `
+    <div class="division-icon ${factionClass}${selectedClass}${statusClass}">
+      <div class="division-icon__glow"></div>
+      <div class="division-icon__glyph">${svg}</div>
+      <div class="division-icon__labels">
+        <span class="division-icon__strength">${strength}%</span>
+        <span class="division-icon__org">ORG ${org}</span>
+      </div>
+    </div>
+  `
+}
+
+const getFrontBadgeMarkup = (front, isSelected) => {
+  const progress = Math.round(front.progress * 100)
+  const readiness = Math.round(front.readiness)
+  const supply = Math.round(front.supply)
+  const stateLabel = {
+    idle: 'Оборона',
+    preparing: 'Подготовка',
+    advancing: 'Наступление',
+    stalled: 'Застой',
+    secured: 'Закрепились',
+    regrouping: 'Перегруппировка',
+  }[front.state] ?? 'Оборона'
+
+  const modifierClass = isSelected ? ' front-badge--selected' : ''
+  const stateClass = ` front-badge--state-${front.state}`
+
+  return `
+    <div class="front-badge${modifierClass}${stateClass}">
+      <div class="front-badge__title">${front.name}</div>
+      <div class="front-badge__meta">
+        <span>Цель: ${front.objective}</span>
+        <span>Состояние: ${stateLabel}</span>
+      </div>
+      <div class="front-badge__meters">
+        <span>Прогресс ${progress}%</span>
+        <span>Готовн. ${readiness}</span>
+        <span>Снабж. ${supply}</span>
+      </div>
+    </div>
+  `
+}
+
+function MapView({
+  fronts,
+  divisions,
+  selectedFrontId,
+  onSelectFront,
+  onToggleFrontState,
+  selectedDivisionId,
+  onSelectDivision,
+}) {
+  const divisionIconCache = useRef(new Map())
+  const frontBadgeCache = useRef(new Map())
+
+  const getDivisionIcon = (division, isSelected) => {
+    const key = `${division.id}-${division.faction}-${division.type}-${division.status}-${isSelected ? 'selected' : 'idle'}`
+    if (!divisionIconCache.current.has(key)) {
+      divisionIconCache.current.set(
+        key,
+        L.divIcon({
+          className: 'division-icon-wrapper',
+          html: getDivisionIconMarkup(division, isSelected),
+          iconSize: [54, 54],
+          iconAnchor: [27, 27],
+          popupAnchor: [0, -20],
+        }),
+      )
     }
-  }, [isMeasuring])
+    return divisionIconCache.current.get(key)
+  }
 
-  const measurement = useMemo(() => {
-    if (measurePoints.length === 0) {
-      return null
+  const getFrontBadgeIcon = (front, isSelected) => {
+    const key = `${front.id}-${front.state}-${Math.round(front.progress * 100)}-${Math.round(front.readiness)}-${Math.round(front.supply)}-${isSelected}`
+    if (!frontBadgeCache.current.has(key)) {
+      frontBadgeCache.current.set(
+        key,
+        L.divIcon({
+          className: 'front-badge-wrapper',
+          html: getFrontBadgeMarkup(front, isSelected),
+          iconSize: [180, 86],
+          iconAnchor: [90, 54],
+          popupAnchor: [0, -32],
+        }),
+      )
     }
+    return frontBadgeCache.current.get(key)
+  }
 
-    if (measurePoints.length === 1) {
-      return {
-        distance: null,
-        points: measurePoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-      }
-    }
-
-    const [start, end] = measurePoints
-    const startLatLng = L.latLng(start.lat, start.lng)
-    const endLatLng = L.latLng(end.lat, end.lng)
-
-    return {
-      distance: startLatLng.distanceTo(endLatLng),
-      points: measurePoints.map((point) => ({ lat: point.lat, lng: point.lng })),
-    }
-  }, [measurePoints])
-
-  useEffect(() => {
-    onMeasurementChange(measurement)
-  }, [measurement, onMeasurementChange])
-
-  const formattedDistance = useMemo(() => {
-    if (!measurement || measurement.distance == null) {
-      return null
-    }
-
-    const { distance } = measurement
-    if (distance >= 1000) {
-      const km = distance / 1000
-      return `${km.toFixed(km >= 100 ? 0 : 2)} km`
-    }
-
-    return `${Math.round(distance)} m`
-  }, [measurement])
-
-  const midpoint = useMemo(() => {
-    if (measurePoints.length === 2) {
-      return L.latLngBounds(measurePoints[0], measurePoints[1]).getCenter()
-    }
-
-    return null
-  }, [measurePoints])
-
-  const measurementStatus = useMemo(() => {
-    if (isMeasuring) {
-      if (!measurement) {
-        return 'Wskaż punkt początkowy na mapie, aby rozpocząć pomiar.'
-      }
-
-      if (measurement.distance == null) {
-        return 'Wybierz punkt docelowy, aby zakończyć pomiar.'
-      }
-
-      return `Dystans: ${formattedDistance}`
-    }
-
-    if (measurement && measurement.distance != null) {
-      return `Ostatni pomiar: ${formattedDistance}`
-    }
-
-    return 'Otwórz zgłoszenie, aby zobaczyć szczegóły, albo włącz linijkę, by zaplanować trasę.'
-  }, [formattedDistance, isMeasuring, measurement])
-
-  const distanceIcon = useMemo(() => {
-    if (!midpoint || !formattedDistance) {
-      return null
-    }
-
-    return L.divIcon({
-      className: 'distance-label',
-      html: `<span>${formattedDistance}</span>`,
-      iconSize: [0, 0],
-    })
-  }, [formattedDistance, midpoint])
-
-  const handleDispatch = useCallback(
-    (report, service) => {
-      onDispatchRequest?.(report, service)
-    },
-    [onDispatchRequest],
+  const preparedFronts = useMemo(
+    () =>
+      fronts.map((front) => ({
+        ...front,
+        paddedPath: front?.path?.map((point) => [point.lat, point.lng]) ?? [],
+        paddedAdvancePath: front?.advancePath?.map((point) => [point.lat, point.lng]) ?? [],
+      })),
+    [fronts],
   )
+
+  const handleFrontClick = (frontId) => {
+    onSelectFront?.(frontId)
+  }
+
+  const handleFrontDoubleClick = (frontId) => {
+    onToggleFrontState?.(frontId)
+  }
 
   return (
     <div className="map-wrapper">
       <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution="&copy; OpenStreetMap współtwórcy &copy; CARTO"
+          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
 
         <ZoomControl position="topright" />
 
-        <MeasureController isMeasuring={isMeasuring} onUpdatePoints={setMeasurePoints} />
+        <Pane name="front-band" style={{ zIndex: 340 }} />
+        <Pane name="front-line" style={{ zIndex: 350 }} />
+        <Pane name="front-label" style={{ zIndex: 360 }} />
+        <Pane name="division-marker" style={{ zIndex: 380 }} />
 
-        {measurePoints.length > 0 && (
-          <CircleMarker
-            center={measurePoints[0]}
-            radius={6}
-            pathOptions={{ color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1 }}
-          />
-        )}
+        {preparedFronts.map((front) => (
+          <Fragment key={front.id}>
+            {front.band && (
+              <Polygon
+                pane="front-band"
+                positions={front.band}
+                pathOptions={{
+                  color: front.color,
+                  weight: 0,
+                  fillColor: front.color,
+                  fillOpacity: selectedFrontId === front.id ? 0.28 : 0.18,
+                  interactive: true,
+                  className: 'front-band-shape',
+                }}
+                eventHandlers={{
+                  click: () => handleFrontClick(front.id),
+                  dblclick: () => handleFrontDoubleClick(front.id),
+                }}
+              />
+            )}
 
-        {measurePoints.length === 2 && (
-          <>
-            <CircleMarker
-              center={measurePoints[1]}
-              radius={6}
-              pathOptions={{ color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1 }}
-            />
+            {front.paddedAdvancePath.length === front.paddedPath.length &&
+              front.paddedPath.map((point, index) => {
+                const target = front.paddedAdvancePath[index]
+                if (!target) {
+                  return null
+                }
+                const positions = [point, target]
+                return (
+                  <Polyline
+                    key={`${front.id}-advance-${index}`}
+                    pane="front-line"
+                    positions={positions}
+                    pathOptions={{
+                      color: '#facc15',
+                      weight: 2,
+                      opacity: 0.85,
+                      dashArray: '6 8',
+                      interactive: true,
+                    }}
+                    eventHandlers={{
+                      click: () => handleFrontClick(front.id),
+                    }}
+                  />
+                )
+              })}
+
             <Polyline
-              positions={measurePoints}
-              pathOptions={{ color: '#22d3ee', weight: 3, dashArray: '8 6', opacity: 0.85 }}
+              pane="front-line"
+              positions={front.paddedPath}
+              pathOptions={{
+                color: front.color,
+                weight: selectedFrontId === front.id ? 8 : 6,
+                opacity: 0.95,
+                dashArray:
+                  front.state === 'advancing'
+                    ? '0'
+                    : front.state === 'stalled' || front.state === 'regrouping'
+                      ? '4 8'
+                      : '1 12',
+                lineJoin: 'round',
+                lineCap: 'round',
+                interactive: true,
+              }}
+              eventHandlers={{
+                click: () => handleFrontClick(front.id),
+                dblclick: () => handleFrontDoubleClick(front.id),
+              }}
             />
-          </>
-        )}
 
-        {midpoint && distanceIcon && (
-          <Marker position={midpoint} icon={distanceIcon} interactive={false} />
-        )}
-
-        {reports.map((report) => (
-          <CircleMarker
-            key={report.id}
-            center={[report.lat, report.lng]}
-            radius={12}
-            className="incident-marker"
-            pathOptions={{ color: '#f87171', fillColor: '#f87171', fillOpacity: 0.9 }}
-          >
-            <Popup>
-              <div className="popup-card">
-                <p className="popup-meta">{report.city}</p>
-                <h3>{report.title}</h3>
-                <div className="popup-details">
-                  <div className="popup-detail">
-                    <span>Rodzaj incydentu</span>
-                    <p>{report.incident}</p>
+            {front.labelPosition && (
+              <Marker
+                pane="front-label"
+                position={[front.labelPosition.lat, front.labelPosition.lng]}
+                icon={getFrontBadgeIcon(front, selectedFrontId === front.id)}
+                eventHandlers={{
+                  click: () => handleFrontClick(front.id),
+                  dblclick: () => handleFrontDoubleClick(front.id),
+                }}
+              >
+                <Popup>
+                  <div className="front-popup">
+                    <h3>{front.name}</h3>
+                    <p>Цель: {front.objective}</p>
+                    <p>Прогресс: {Math.round(front.progress * 100)}%</p>
+                    <p>Готовность: {Math.round(front.readiness)}%</p>
+                    <p>Снабжение: {Math.round(front.supply)}%</p>
+                    <p>Потери: {Math.round(front.reportedLosses)} чел.</p>
                   </div>
-                  <div className="popup-detail">
-                    <span>Typ uzbrojenia</span>
-                    <p>{report.weaponType}</p>
-                  </div>
-                  <div className="popup-detail">
-                    <span>Ostatnia obserwacja</span>
-                    <p>{report.lastSeen}</p>
-                  </div>
-                </div>
-                <p className="popup-note">{report.note}</p>
-                <div className="popup-actions">
-                  <span>Skieruj do</span>
-                  <div className="popup-action-buttons">
-                    {report.services.map((service) => (
-                      <button
-                        key={service}
-                        className="popup-action-button"
-                        type="button"
-                        onClick={() => handleDispatch(report, service)}
-                      >
-                        {service}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Popup>
-          </CircleMarker>
+                </Popup>
+              </Marker>
+            )}
+          </Fragment>
         ))}
-      </MapContainer>
 
-      <div className="map-tint" aria-hidden="true" />
-      <div className="map-status">{measurementStatus}</div>
+        {divisions.map((division) => {
+          if (!division.displayPosition) {
+            return null
+          }
+
+          const position = [division.displayPosition.lat, division.displayPosition.lng]
+          const icon = getDivisionIcon(division, selectedDivisionId === division.id)
+
+          return (
+            <Marker
+              key={division.id}
+              pane="division-marker"
+              position={position}
+              icon={icon}
+              eventHandlers={{
+                click: () => onSelectDivision?.(division.id),
+              }}
+            >
+              <Popup>
+                <div className="division-popup">
+                  <h3>{division.name}</h3>
+                  <p>
+                    <strong>{division.faction === 'enemy' ? 'Противник' : 'Наши войска'}</strong>
+                  </p>
+                  <p>Тип: {division.type === 'armor' ? 'Танковая' : 'Пехотная'}</p>
+                  <p>Боеспособность: {Math.round(division.strength)}%</p>
+                  <p>Организация: {Math.round(division.organization)}</p>
+                  {division.assignment && <p>Фронт: {division.assignment.frontId.toUpperCase()}</p>}
+                  {division.status && <p>Статус: {statusLabel[division.status] ?? division.status}</p>}
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
+      </MapContainer>
+      <div className="map-overlay-gradient" aria-hidden="true" />
+      <div className="map-strips" aria-hidden="true" />
     </div>
   )
 }
