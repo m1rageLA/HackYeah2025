@@ -1,5 +1,5 @@
 """Route modules available for the API."""
 
-from . import health
+from . import health, reports
 
-__all__ = ["health"]
+__all__ = ["health", "reports"]
