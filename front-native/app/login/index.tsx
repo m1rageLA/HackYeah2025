@@ -2,9 +2,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { cssInterop } from 'nativewind';
-import React from 'react';
+import React, { use } from 'react';
 import { SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRootContext } from '../context/rootContext';
 
 const GradientBackground = cssInterop(LinearGradient, {
   className: 'style',
@@ -13,8 +14,11 @@ const GradientBackground = cssInterop(LinearGradient, {
 export default function LoginScreen() {
   const router = useRouter();
 
+  const { updateData } = useRootContext();
+
   const handleContinue = () => {
-    router.push('/select-category');
+    updateData({ isLogged: true });
+    router.push('/');
   };
 
   return (

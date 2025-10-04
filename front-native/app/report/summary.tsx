@@ -17,8 +17,11 @@ export default function ReportSummaryPlaceholder() {
         <TouchableOpacity
           className="mt-10 rounded-2xl bg-[#1E5BFF] px-6 py-4"
           activeOpacity={0.9}
-          onPress={() => router.replace('/select-category')}>
-          <Text className="text-base font-semibold text-white">Wyślij zgłoszenie</Text>
+          onPress={() => router.replace('/')}
+        >
+          <Text className="text-base font-semibold text-white">
+            Wyślij zgłoszenie
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
