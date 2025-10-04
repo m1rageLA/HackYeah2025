@@ -1,14 +1,24 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+﻿import React, {
+  ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+} from 'react';
 
 export interface FormData {
   componentsIdentifiers: string[];
   componentIndex: number;
-  data?: any;
+  data?: Record<string, unknown>;
 }
+
+export type FormUpdater =
+  | Partial<FormData>
+  | ((previous: FormData) => Partial<FormData>);
 
 interface FormContextType {
   data: FormData;
-  updateData: (newData: Partial<FormData>) => void;
+  updateData: (updater: FormUpdater) => void;
 }
 
 const FormContext = createContext<FormContextType | undefined>(undefined);
@@ -24,9 +34,13 @@ export const FormProvider = ({
     initialState || { componentsIdentifiers: [], componentIndex: 0 },
   );
 
-  const updateData = (newData: Partial<FormData>) => {
-    setData((prev) => ({ ...prev, ...newData }));
-  };
+  const updateData = useCallback((updater: FormUpdater) => {
+    setData((previous) => {
+      const patch =
+        typeof updater === 'function' ? updater(previous) : updater;
+      return { ...previous, ...patch };
+    });
+  }, []);
 
   return (
     <FormContext.Provider value={{ data, updateData }}>

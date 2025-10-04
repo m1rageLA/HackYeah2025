@@ -30,8 +30,8 @@ export default function ReportLocationScreen() {
       router.push('/report/summary');
       return;
     }
-    updateData({ ...data, componentIndex: data.componentIndex + 1 });
-    router.push('/report');
+    updateData((previous) => ({ componentIndex: previous.componentIndex + 1 }));
+    // router.push('/report');
   }, [data, router, updateData]);
   const getComponetsReportMap = useCallback((): Record<
     string,
@@ -51,8 +51,8 @@ export default function ReportLocationScreen() {
   }, [handleContinue]);
 
   useEffect(() => {
-    console.log(getComponetsReportMap());
-  }, []);
+    console.log('data', data);
+  }, [data]);
 
   return (
     <GradientBackground
@@ -69,7 +69,15 @@ export default function ReportLocationScreen() {
               accessibilityLabel="Powrót"
               className="h-10 w-10 items-center justify-center rounded-xl bg-[rgba(9,24,46,0.75)]"
               activeOpacity={0.85}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (data.componentIndex === 0) {
+                  router.back();
+                } else {
+                  updateData((previous) => ({
+                    componentIndex: previous.componentIndex - 1,
+                  }));
+                }
+              }}
             >
               <MaterialCommunityIcons
                 name="arrow-left"

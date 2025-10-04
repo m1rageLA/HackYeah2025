@@ -1,13 +1,26 @@
-import { useRouter } from 'expo-router';
+﻿import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useCallback } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useForm } from '@/app/context/FormContext';
 
-export default function LocationReportComponet({
-  onContinue,
-}: {
+type LocationMode = 'nearby' | 'manual';
+
+interface Props {
   onContinue?: () => void;
-}) {
-  const router = useRouter();
+}
+
+export default function LocationReportComponent({ onContinue }: Props) {
+  const { updateData } = useForm();
+
+  const handleLocationUpdate = useCallback(
+    (mode: LocationMode) => {
+      updateData((previous) => ({
+        data: { ...(previous.data || {}), locationMode: mode },
+      }));
+      onContinue?.();
+    },
+    [onContinue, updateData],
+  );
 
   return (
     <View className="mt-12 flex-1 items-stretch rounded-[28px] bg-[rgba(6,19,44,0.85)] px-6 py-10">
@@ -17,11 +30,9 @@ export default function LocationReportComponet({
           size={54}
           color="#7AA7FF"
         />
-        <Text className="text-2xl font-semibold text-[#F5F8FF]">
-          Lokalizacja
-        </Text>
+        <Text className="text-2xl font-semibold text-[#F5F8FF]">Lokalizacja</Text>
         <Text className="text-center text-sm text-[#9EB2D0]">
-          Twoja aktualna lokalizacja została automatycznie wykryta.
+          Twoja aktualna lokalizacja zostala automatycznie wykryta.
         </Text>
       </View>
 
@@ -29,12 +40,7 @@ export default function LocationReportComponet({
         <TouchableOpacity
           activeOpacity={0.9}
           className="rounded-2xl bg-[#1E5BFF] px-5 py-5"
-          onPress={() =>
-            onContinue &&
-            requestAnimationFrame(() => {
-              onContinue();
-            })
-          }
+          onPress={() => handleLocationUpdate('nearby')}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-3">
@@ -46,11 +52,9 @@ export default function LocationReportComponet({
                 />
               </View>
               <View>
-                <Text className="text-lg font-semibold text-white">
-                  Obok mnie
-                </Text>
+                <Text className="text-lg font-semibold text-white">Obok mnie</Text>
                 <Text className="text-sm text-[rgba(230,237,255,0.8)]">
-                  użyj lokalizacji w pobliżu mnie
+                  uzyj lokalizacji w poblizu mnie
                 </Text>
               </View>
             </View>
@@ -69,12 +73,7 @@ export default function LocationReportComponet({
         <TouchableOpacity
           activeOpacity={0.9}
           className="rounded-2xl bg-[rgba(13,32,61,0.9)] px-5 py-5"
-          onPress={() =>
-            onContinue &&
-            requestAnimationFrame(() => {
-              onContinue();
-            })
-          }
+          onPress={() => handleLocationUpdate('manual')}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-3">
@@ -90,7 +89,7 @@ export default function LocationReportComponet({
                   Inna lokalizacja
                 </Text>
                 <Text className="text-sm text-[#8EA1C1]">
-                  wskaż adres ręcznie
+                  wskaz adres recznie
                 </Text>
               </View>
             </View>
