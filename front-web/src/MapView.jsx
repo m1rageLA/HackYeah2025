@@ -8,6 +8,7 @@ import {
   Polyline,
   TileLayer,
   useMapEvents,
+  ZoomControl,
 } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -198,11 +199,13 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
 
   return (
     <div className="map-wrapper">
-      <MapContainer center={mapCenter} zoom={mapZoom} className="map-container">
+      <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
+
+        <ZoomControl position="topright" />
 
         <MeasureController isMeasuring={isMeasuring} onUpdatePoints={setMeasurePoints} />
 
