@@ -30,7 +30,7 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.SPOR_VM_USER }}@${{ secrets.SPOR_VM_IP }} << 'EOF'
             cd HackYeah2025
             git fetch origin
-            git reset --hard origin/main-front-client
+            git reset --hard origin/main-back
             cd back
 
             docker build -t fast-api-back:latest .
