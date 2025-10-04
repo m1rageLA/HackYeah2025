@@ -1,30 +1,248 @@
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import L from 'leaflet'
+import {
+  CircleMarker,
+  MapContainer,
+  Popup,
+  Polyline,
+  TileLayer,
+  useMapEvents,
+} from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 
 const reports = [
-  { id: 1, lat: 52.2297, lng: 21.0122, title: 'Warsaw' },
-  { id: 2, lat: 50.0647, lng: 19.945, title: 'Krakow' },
-  { id: 3, lat: 51.1079, lng: 17.0385, title: 'Wroclaw' },
+  {
+    id: 1,
+    lat: 52.2297,
+    lng: 21.0122,
+    title: 'Warsaw Logistics Hub',
+    city: 'Warszawa',
+    incident: 'Ludzie z bronią',
+    weaponType: 'Ciężki sprzęt',
+    lastSeen: '30 minut temu',
+    note: 'Konwój ustawiony w pobliżu wschodniej drogi serwisowej. Jednostki lokalne zgłaszają ciężki sprzęt i uzbrojony personel.',
+    services: ['Policja', 'Straż Pożarna'],
+  },
+  {
+    id: 2,
+    lat: 51.0647,
+    lng: 19.945,
+    title: 'Old Town Transit Depot',
+    city: 'Kraków',
+    incident: 'Ludzie z bronią',
+    weaponType: 'Ciężki sprzęt',
+    lastSeen: '30 minut temu',
+    note: 'Cywile zgłaszają kolumnę opancerzoną przemieszczającą się w pobliżu infrastruktury tramwajowej. Tłumy pozostają w schronieniu.',
+    services: ['Policja', 'Straż Pożarna'],
+  },
+  {
+    id: 3,
+    lat: 51.1079,
+    lng: 17.0385,
+    title: 'Industrial Perimeter Gate',
+    city: 'Wrocław',
+    incident: 'Ludzie z bronią',
+    weaponType: 'Ciężki sprzęt',
+    lastSeen: '30 minut temu',
+    note: 'Dron zwiadowczy potwierdził obecność opancerzonych pojazdów utrzymujących pozycję przy zachodniej bramie załadunkowej.',
+    services: ['Policja', 'Straż Pożarna'],
+  },
 ]
 
 const mapCenter = [52.069167, 19.480556]
-const mapZoom = 6
+const mapZoom = 7
 
-function MapView() {
+function MeasureController({ isMeasuring, onUpdatePoints }) {
+  const map = useMapEvents({
+    click(event) {
+      if (!isMeasuring) {
+        return
+      }
+
+      onUpdatePoints((prev) => {
+        if (prev.length === 0) {
+          return [event.latlng]
+        }
+        if (prev.length === 1) {
+          return [prev[0], event.latlng]
+        }
+        return [event.latlng]
+      })
+    },
+  })
+
+  useEffect(() => {
+    const container = map.getContainer()
+    container.style.cursor = isMeasuring ? 'crosshair' : ''
+
+    return () => {
+      container.style.cursor = ''
+    }
+  }, [map, isMeasuring])
+
+  useEffect(() => {
+    if (!isMeasuring) {
+      onUpdatePoints([])
+    }
+  }, [isMeasuring, onUpdatePoints])
+
+  return null
+}
+
+function MapView({ isMeasuring, onMeasurementChange }) {
+  const [measurePoints, setMeasurePoints] = useState([])
+
+  useEffect(() => {
+    if (!isMeasuring) {
+      setMeasurePoints([])
+    }
+  }, [isMeasuring])
+
+  const measurement = useMemo(() => {
+    if (measurePoints.length === 0) {
+      return null
+    }
+
+    if (measurePoints.length === 1) {
+      return {
+        distance: null,
+        points: measurePoints.map((point) => ({ lat: point.lat, lng: point.lng })),
+      }
+    }
+
+    const [start, end] = measurePoints
+    const startLatLng = L.latLng(start.lat, start.lng)
+    const endLatLng = L.latLng(end.lat, end.lng)
+
+    return {
+      distance: startLatLng.distanceTo(endLatLng),
+      points: measurePoints.map((point) => ({ lat: point.lat, lng: point.lng })),
+    }
+  }, [measurePoints])
+
+  useEffect(() => {
+    onMeasurementChange(measurement)
+  }, [measurement, onMeasurementChange])
+
+  const formattedDistance = useMemo(() => {
+    if (!measurement || measurement.distance == null) {
+      return null
+    }
+
+    const { distance } = measurement
+    if (distance >= 1000) {
+      const km = distance / 1000
+      return `${km.toFixed(km >= 100 ? 0 : 2)} km`
+    }
+
+    return `${Math.round(distance)} m`
+  }, [measurement])
+
+  const measurementStatus = useMemo(() => {
+    if (isMeasuring) {
+      if (!measurement) {
+        return 'Kliknij gdziekolwiek na mapie, aby rozpocząć pomiar.'
+      }
+
+      if (measurement.distance == null) {
+        return 'Wybierz punkt docelowy, aby zakończyć pomiar.'
+      }
+
+      return `Dystans: ${formattedDistance}`
+    }
+
+    if (measurement && measurement.distance != null) {
+      return `Ostatni pomiar: ${formattedDistance}`
+    }
+
+    return 'Kliknij raport, aby zobaczyć szczegóły incydentu lub włącz linijkę do planowania trasy.'
+  }, [formattedDistance, isMeasuring, measurement])
+
+  const handleDispatch = useCallback((title, service) => {
+    console.log(`Żądanie wysłania (placeholder): ${service} do ${title}`)
+  }, [])
+
   return (
-    <MapContainer center={mapCenter} zoom={mapZoom} style={{ height: '100%', width: '100%' }}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-      {reports.map((report) => (
-        <CircleMarker
-          key={report.id}
-          center={[report.lat, report.lng]}
-          radius={10}
-          pathOptions={{ color: '#d0021b', fillColor: '#d0021b', fillOpacity: 0.85 }}
-        >
-          <Popup>{report.title}</Popup>
-        </CircleMarker>
-      ))}
-    </MapContainer>
+    <div className="map-wrapper">
+      <MapContainer center={mapCenter} zoom={mapZoom} className="map-container">
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+        />
+
+        <MeasureController isMeasuring={isMeasuring} onUpdatePoints={setMeasurePoints} />
+
+        {measurePoints.length > 0 && (
+          <CircleMarker
+            center={measurePoints[0]}
+            radius={6}
+            pathOptions={{ color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1 }}
+          />
+        )}
+
+        {measurePoints.length === 2 && (
+          <>
+            <CircleMarker
+              center={measurePoints[1]}
+              radius={6}
+              pathOptions={{ color: '#22d3ee', fillColor: '#22d3ee', fillOpacity: 1 }}
+            />
+            <Polyline
+              positions={measurePoints}
+              pathOptions={{ color: '#22d3ee', weight: 3, dashArray: '8 6', opacity: 0.85 }}
+            />
+          </>
+        )}
+
+        {reports.map((report) => (
+          <CircleMarker
+            key={report.id}
+            center={[report.lat, report.lng]}
+            radius={12}
+            pathOptions={{ color: '#f87171', fillColor: '#f87171', fillOpacity: 0.9 }}
+          >
+            <Popup>
+              <div className="popup-card">
+                <p className="popup-meta">{report.city}</p>
+                <h3>{report.title}</h3>
+                <div className="popup-details">
+                  <div className="popup-detail">
+                    <span>Jaki incydent</span>
+                    <p>{report.incident}</p>
+                  </div>
+                  <div className="popup-detail">
+                    <span>Rodzaj broni</span>
+                    <p>{report.weaponType}</p>
+                  </div>
+                  <div className="popup-detail">
+                    <span>Kiedy ostatnio widziano</span>
+                    <p>{report.lastSeen}</p>
+                  </div>
+                </div>
+                <p className="popup-note">{report.note}</p>
+                <div className="popup-actions">
+                  <span>Skierować do</span>
+                  <div className="popup-action-buttons">
+                    {report.services.map((service) => (
+                      <button
+                        key={service}
+                        className="popup-action-button"
+                        type="button"
+                        onClick={() => handleDispatch(report.title, service)}
+                      >
+                        {service}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+
+      <div className="map-status">{measurementStatus}</div>
+    </div>
   )
 }
 
