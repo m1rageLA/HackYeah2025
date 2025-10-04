@@ -1,14 +1,18 @@
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
+import 'react-native-reanimated';
+import { FormProvider } from '../context/FormContext';
 
-
-// Stack navigator for all report flow screens; keeps headers off for custom UI.
 export default function ReportLayout() {
+  const params = useLocalSearchParams();
+
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="details" />
-      <Stack.Screen name="evidence" />
-      <Stack.Screen name="summary" />
-    </Stack>
+    <FormProvider
+      initialState={JSON.parse(params.initialState as string) || undefined}
+    >
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="summary" />
+      </Stack>
+    </FormProvider>
   );
 }
