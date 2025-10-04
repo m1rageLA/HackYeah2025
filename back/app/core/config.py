@@ -1,6 +1,7 @@
 """Configuration management for the FastAPI application."""
 
 from functools import lru_cache
+
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +36,7 @@ class Settings(BaseSettings):
         if raw_path.parts and raw_path.parts[0] == BASE_DIR.name:
             return (BASE_DIR.parent / raw_path).resolve()
         return (BASE_DIR / raw_path).resolve()
+
 
 
 @lru_cache
