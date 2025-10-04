@@ -1,5 +1,16 @@
 ﻿import React, { useCallback, useMemo, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import MaskedView from '@react-native-masked-view/masked-view';
+import {
+  LayoutChangeEvent,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -17,11 +28,20 @@ const PERMISSION_WARNING =
 const PICK_ERROR =
   'Nie uda\u0142o si\u0119 wczyta\u0107 zdj\u0119cia. Spr\u00f3buj ponownie.';
 
+const BUTTON_HEIGHT = 56;
+const BUTTON_BOTTOM_INSET = 24;
+const FADE_GAP = 12;
+const FADE_LENGTH = 120;
+const DEFAULT_FADE_START = 0.72;
+const MASK_COLORS = ['rgba(0,0,0,1)', 'rgba(0,0,0,1)', 'rgba(0,0,0,0)'];
+
 export default function EvidenceReportComponet({ onContinue }: Props) {
   const [selectedAsset, setSelectedAsset] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
   const [isPicking, setIsPicking] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
 
   const { data, updateData } = useForm();
 
@@ -29,6 +49,14 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
     if (!callback) return;
     requestAnimationFrame(callback);
   };
+
+  const handleScrollViewLayout = useCallback((event: LayoutChangeEvent) => {
+    setScrollViewHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const handleContentSizeChange = useCallback((_: number, height: number) => {
+    setContentHeight(height);
+  }, []);
 
   const handlePickImage = useCallback(async () => {
     try {
@@ -88,8 +116,56 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
     return 'Obs\u0142ugiwane s\u0105 wy\u0142\u0105cznie pliki graficzne.';
   }, [selectedAsset]);
 
-  return (
-    <View className="flex-1 bg-transparent px-4 py-6">
+  const scrollBottomInset = BUTTON_HEIGHT + BUTTON_BOTTOM_INSET + FADE_GAP;
+  const isOverflowing =
+    contentHeight > scrollViewHeight && scrollViewHeight > 0;
+
+  const fadeStartLocation = useMemo(() => {
+    if (!isOverflowing || !scrollViewHeight) {
+      return DEFAULT_FADE_START;
+    }
+    const fadeBottomOffset = BUTTON_HEIGHT + BUTTON_BOTTOM_INSET + FADE_GAP;
+    const available = scrollViewHeight - (fadeBottomOffset + FADE_LENGTH);
+    if (available <= 0) {
+      return DEFAULT_FADE_START;
+    }
+    const normalized = available / scrollViewHeight;
+    if (!Number.isFinite(normalized)) {
+      return DEFAULT_FADE_START;
+    }
+    const clamped = Math.min(0.92, Math.max(DEFAULT_FADE_START, normalized));
+    return clamped;
+  }, [isOverflowing, scrollViewHeight]);
+
+  const maskLocations = useMemo(
+    () => [0, fadeStartLocation, 1],
+    [fadeStartLocation],
+  );
+
+  const webMaskStyle = useMemo<ViewStyle | undefined>(() => {
+    if (!isOverflowing || Platform.OS !== 'web') {
+      return undefined;
+    }
+    const fadeStartPercentage = Math.round(fadeStartLocation * 100);
+    const gradient = `linear-gradient(to bottom, rgba(0,0,0,1) ${fadeStartPercentage}%, rgba(0,0,0,0) 100%)`;
+    const style: ViewStyle = {};
+    (style as any).maskImage = gradient;
+    (style as any).WebkitMaskImage = gradient;
+    return style;
+  }, [fadeStartLocation, isOverflowing]);
+
+  const renderScrollView = () => (
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingBottom: scrollBottomInset },
+      ]}
+      showsVerticalScrollIndicator={false}
+      onLayout={handleScrollViewLayout}
+      onContentSizeChange={handleContentSizeChange}
+      keyboardShouldPersistTaps="handled"
+    >
       <View className="mt-10">
         <Text className="text-2xl font-semibold text-[#F5F8FF]">
           Zdj\u0119cie
@@ -148,10 +224,50 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
           {errorMessage}
         </Text>
       ) : null}
+    </ScrollView>
+  );
+
+  const renderScrollArea = () => {
+    if (Platform.OS === 'web') {
+      if (!isOverflowing) {
+        return renderScrollView();
+      }
+      return (
+        <View style={[styles.maskWrapper, webMaskStyle]}>
+          {renderScrollView()}
+        </View>
+      );
+    }
+
+    if (!isOverflowing) {
+      return renderScrollView();
+    }
+
+    return (
+      <MaskedView
+        style={styles.maskWrapper}
+        maskElement={
+          <LinearGradient
+            colors={MASK_COLORS}
+            locations={maskLocations}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.maskGradient}
+          />
+        }
+      >
+        {renderScrollView()}
+      </MaskedView>
+    );
+  };
+
+  return (
+    <View className="flex-1 bg-transparent px-4 py-6">
+      {renderScrollArea()}
 
       <TouchableOpacity
         activeOpacity={0.88}
-        className="mt-8 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
+        className="absolute left-0 right-0 bottom-0 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
         onPress={() => trigger(handleContinue)}
       >
         <Text className="text-base font-semibold text-white">Continue</Text>
@@ -159,3 +275,18 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: 0,
+  },
+  maskWrapper: {
+    flex: 1,
+  },
+  maskGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+});
