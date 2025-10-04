@@ -1,27 +1,92 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import MapView from './MapView.jsx'
 import './App.css'
 
+function IconGlobe() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+        d="M12 21c4.97 0 9-3.91 9-9s-4.03-9-9-9-9 3.91-9 9 4.03 9 9 9Z"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+        d="M3.6 9h16.8M3.6 15h16.8M12 3c2.4 3 3.6 6 3.6 9s-1.2 6-3.6 9c-2.4-3-3.6-6-3.6-9S9.6 6 12 3Z"
+      />
+    </svg>
+  )
+}
+
+function IconInfo() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+        d="M12 16v-5M12 8.8h.01"
+      />
+    </svg>
+  )
+}
+
+function IconRuler() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect
+        x="3"
+        y="7"
+        width="18"
+        height="10"
+        rx="2"
+        ry="2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+        d="M7 9h.01M10 12h.01M13 9h.01M16 12h.01M19 9h.01"
+      />
+    </svg>
+  )
+}
+
+function IconHand() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+        d="M8.5 11.5V6.6c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8V11m0-3.2c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v3.8m0-1.8c0-1 .8-1.8 1.8-1.8s1.8.8 1.8 1.8v4.5c0 2.7-1 4.4-2.6 5.6l-2.2 1.6c-.7.5-1.7.3-2.1-.4l-.7-1.1c-.3-.4-.8-.7-1.4-.7H9.4c-.6 0-1.1-.3-1.4-.8l-2.5-4.2c-.6-1-.2-2.3.9-2.8.9-.4 1.9.1 2.2 1l.6 1.6"
+      />
+    </svg>
+  )
+}
+
 function App() {
+  const [, setMeasurement] = useState(null)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isMeasuring, setIsMeasuring] = useState(false)
-  const [measurement, setMeasurement] = useState(null)
-
-  const formattedDistance = useMemo(() => {
-    if (!measurement || measurement.distance == null) {
-      return null
-    }
-
-    const { distance } = measurement
-    if (distance >= 1000) {
-      const km = distance / 1000
-      return `${km.toFixed(km >= 100 ? 0 : 2)} km`
-    }
-
-    return `${Math.round(distance)} m`
-  }, [measurement])
-
-  const pointsCaptured = measurement?.points?.length ?? 0
+  const [dispatchContext, setDispatchContext] = useState(null)
 
   const handleToggleMeasure = () => {
     setIsMeasuring((prev) => {
@@ -33,71 +98,80 @@ function App() {
     })
   }
 
+  const handleDisableMeasure = () => {
+    setIsMeasuring(false)
+    setMeasurement(null)
+  }
+
+  const handleDispatchRequest = (report, service) => {
+    setDispatchContext({ report, service })
+  }
+
+  const handleCloseDispatch = () => {
+    setDispatchContext(null)
+  }
+
+  const handleConfirmDispatch = () => {
+    setDispatchContext(null)
+    window.alert('Службам передана информация')
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="sidebar-header">
-          <p className="sidebar-kicker">Rapid Response Console</p>
-          <h1 className="sidebar-title">Incident Desk</h1>
-          <p className="sidebar-subtitle">Live intelligence feed · Poland</p>
-        </div>
+        <button
+          className="icon-button"
+          type="button"
+          disabled
+          aria-label="Language placeholder"
+          title="Language placeholder"
+        >
+          <IconGlobe />
+        </button>
 
-        <div className="sidebar-section">
-          <span className="section-label">Language</span>
-          <button className="ghost-button" type="button" disabled>
-            EN · placeholder
-          </button>
-        </div>
+        <button
+          className="icon-button"
+          type="button"
+          onClick={() => setIsInfoOpen(true)}
+          aria-label="Information"
+          title="Information"
+        >
+          <IconInfo />
+        </button>
 
-        <div className="sidebar-section">
-          <span className="section-label">Controls</span>
-          <div className="sidebar-actions">
-            <button className="primary-button" type="button" onClick={() => setIsInfoOpen(true)}>
-              Info
-            </button>
-            <button
-              className={`toggle-button${isMeasuring ? ' active' : ''}`}
-              type="button"
-              onClick={handleToggleMeasure}
-            >
-              {isMeasuring ? 'Finish measuring' : 'Ruler: measure distance'}
-            </button>
-          </div>
-        </div>
+        <button
+          className={`icon-button${!isMeasuring ? ' active' : ''}`}
+          type="button"
+          onClick={handleDisableMeasure}
+          aria-label="Панорамирование"
+          aria-pressed={!isMeasuring}
+          title="Стандартный режим"
+        >
+          <IconHand />
+        </button>
 
-        <div className="sidebar-section">
-          <span className="section-label">Measurement</span>
-          <div className="measurement-readout">
-            {isMeasuring ? (
-              pointsCaptured === 0 ? (
-                <p>Click the starting point on the map.</p>
-              ) : pointsCaptured === 1 ? (
-                <p>Select the destination point to get the distance.</p>
-              ) : (
-                <p>
-                  Distance: <strong>{formattedDistance}</strong>
-                </p>
-              )
-            ) : formattedDistance ? (
-              <p>
-                Last distance: <strong>{formattedDistance}</strong>
-              </p>
-            ) : (
-              <p>Enable the ruler to plan quick responder routes.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="sidebar-footer">
-          <p>
-            Review alerts, confirm ground truth with field teams, and task the appropriate emergency
-            services from a single view.
-          </p>
-        </div>
+        <button
+          className={`icon-button${isMeasuring ? ' active' : ''}`}
+          type="button"
+          onClick={handleToggleMeasure}
+          aria-label={isMeasuring ? 'Завершить замер' : 'Начать замер'}
+          aria-pressed={isMeasuring}
+          title={isMeasuring ? 'Завершить замер' : 'Начать замер'}
+        >
+          <IconRuler />
+        </button>
       </aside>
 
       <main className="map-area">
-        <MapView isMeasuring={isMeasuring} onMeasurementChange={setMeasurement} />
+        <div className="brand-badge">
+          <p className="brand-kicker">Rapid Response</p>
+          <h1 className="brand-title">Incident Desk</h1>
+        </div>
+        <MapView
+          isMeasuring={isMeasuring}
+          onMeasurementChange={setMeasurement}
+          onDispatchRequest={handleDispatchRequest}
+        />
       </main>
 
       {isInfoOpen && (
@@ -117,6 +191,44 @@ function App() {
             <button className="ghost-button" type="button" onClick={() => setIsInfoOpen(false)}>
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {dispatchContext && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={handleCloseDispatch}
+        >
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Подтверждение направления</h2>
+            <div className="dispatch-summary">
+              <h3>{dispatchContext.report.title}</h3>
+              <p>
+                Локация: <strong>{dispatchContext.report.city}</strong>
+              </p>
+              <p>
+                Инцидент: <strong>{dispatchContext.report.incident}</strong>
+              </p>
+              <p>
+                Тип вооружения: <strong>{dispatchContext.report.weaponType}</strong>
+              </p>
+              <p>
+                Последнее наблюдение: <strong>{dispatchContext.report.lastSeen}</strong>
+              </p>
+              <p>Служба: {dispatchContext.service}</p>
+              <p>Комментарий: {dispatchContext.report.note}</p>
+            </div>
+            <div className="modal-actions">
+              <button className="ghost-button" type="button" onClick={handleCloseDispatch}>
+                Отмена
+              </button>
+              <button className="modal-primary-button" type="button" onClick={handleConfirmDispatch}>
+                Подтвердить
+              </button>
+            </div>
           </div>
         </div>
       )}

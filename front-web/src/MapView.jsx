@@ -3,6 +3,7 @@ import L from 'leaflet'
 import {
   CircleMarker,
   MapContainer,
+  Marker,
   Popup,
   Polyline,
   TileLayer,
@@ -14,7 +15,7 @@ const reports = [
   {
     id: 1,
     lat: 52.2297,
-    lng: 21.0122,
+    lng: 21.0145,
     title: 'Warsaw Logistics Hub',
     city: 'Warszawa',
     incident: 'Ludzie z bronią',
@@ -59,6 +60,16 @@ function MeasureController({ isMeasuring, onUpdatePoints }) {
         return
       }
 
+      const sourceClassName = event.propagatedFrom?.options?.className
+      if (typeof sourceClassName === 'string' && sourceClassName.includes('incident-marker')) {
+        return
+      }
+
+      const originalTarget = event.originalEvent?.target
+      if (originalTarget && originalTarget.closest('.incident-marker')) {
+        return
+      }
+
       onUpdatePoints((prev) => {
         if (prev.length === 0) {
           return [event.latlng]
@@ -89,7 +100,7 @@ function MeasureController({ isMeasuring, onUpdatePoints }) {
   return null
 }
 
-function MapView({ isMeasuring, onMeasurementChange }) {
+function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
   const [measurePoints, setMeasurePoints] = useState([])
 
   useEffect(() => {
@@ -138,29 +149,52 @@ function MapView({ isMeasuring, onMeasurementChange }) {
     return `${Math.round(distance)} m`
   }, [measurement])
 
+  const midpoint = useMemo(() => {
+    if (measurePoints.length === 2) {
+      return L.latLngBounds(measurePoints[0], measurePoints[1]).getCenter()
+    }
+
+    return null
+  }, [measurePoints])
+
   const measurementStatus = useMemo(() => {
     if (isMeasuring) {
       if (!measurement) {
-        return 'Kliknij gdziekolwiek na mapie, aby rozpocząć pomiar.'
+        return 'Укажите начальную точку на карте, чтобы начать замер.'
       }
 
       if (measurement.distance == null) {
-        return 'Wybierz punkt docelowy, aby zakończyć pomiar.'
+        return 'Выберите точку назначения, чтобы завершить замер.'
       }
 
-      return `Dystans: ${formattedDistance}`
+      return `Дистанция: ${formattedDistance}`
     }
 
     if (measurement && measurement.distance != null) {
-      return `Ostatni pomiar: ${formattedDistance}`
+      return `Последний замер: ${formattedDistance}`
     }
 
-    return 'Kliknij raport, aby zobaczyć szczegóły incydentu lub włącz linijkę do planowania trasy.'
+    return 'Откройте точку, чтобы увидеть сводку, или включите линейку для планирования маршрута.'
   }, [formattedDistance, isMeasuring, measurement])
 
-  const handleDispatch = useCallback((title, service) => {
-    console.log(`Żądanie wysłania (placeholder): ${service} do ${title}`)
-  }, [])
+  const distanceIcon = useMemo(() => {
+    if (!midpoint || !formattedDistance) {
+      return null
+    }
+
+    return L.divIcon({
+      className: 'distance-label',
+      html: `<span>${formattedDistance}</span>`,
+      iconSize: [0, 0],
+    })
+  }, [formattedDistance, midpoint])
+
+  const handleDispatch = useCallback(
+    (report, service) => {
+      onDispatchRequest?.(report, service)
+    },
+    [onDispatchRequest],
+  )
 
   return (
     <div className="map-wrapper">
@@ -194,11 +228,16 @@ function MapView({ isMeasuring, onMeasurementChange }) {
           </>
         )}
 
+        {midpoint && distanceIcon && (
+          <Marker position={midpoint} icon={distanceIcon} interactive={false} />
+        )}
+
         {reports.map((report) => (
           <CircleMarker
             key={report.id}
             center={[report.lat, report.lng]}
             radius={12}
+            className="incident-marker"
             pathOptions={{ color: '#f87171', fillColor: '#f87171', fillOpacity: 0.9 }}
           >
             <Popup>
@@ -207,28 +246,28 @@ function MapView({ isMeasuring, onMeasurementChange }) {
                 <h3>{report.title}</h3>
                 <div className="popup-details">
                   <div className="popup-detail">
-                    <span>Jaki incydent</span>
+                    <span>Какой инцидент</span>
                     <p>{report.incident}</p>
                   </div>
                   <div className="popup-detail">
-                    <span>Rodzaj broni</span>
+                    <span>Тип оружия</span>
                     <p>{report.weaponType}</p>
                   </div>
                   <div className="popup-detail">
-                    <span>Kiedy ostatnio widziano</span>
+                    <span>Когда видели последний раз</span>
                     <p>{report.lastSeen}</p>
                   </div>
                 </div>
                 <p className="popup-note">{report.note}</p>
                 <div className="popup-actions">
-                  <span>Skierować do</span>
+                  <span>Направить в</span>
                   <div className="popup-action-buttons">
                     {report.services.map((service) => (
                       <button
                         key={service}
                         className="popup-action-button"
                         type="button"
-                        onClick={() => handleDispatch(report.title, service)}
+                        onClick={() => handleDispatch(report, service)}
                       >
                         {service}
                       </button>
@@ -241,6 +280,7 @@ function MapView({ isMeasuring, onMeasurementChange }) {
         ))}
       </MapContainer>
 
+      <div className="map-tint" aria-hidden="true" />
       <div className="map-status">{measurementStatus}</div>
     </div>
   )
