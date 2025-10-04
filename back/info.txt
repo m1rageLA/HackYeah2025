@@ -1,0 +1,1 @@
+uvicorn app.main:app --reload from back/ to start the app
