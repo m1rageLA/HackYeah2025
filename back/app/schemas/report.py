@@ -1,4 +1,4 @@
-"""Pydantic models for report resources."""
+﻿"""Pydantic models for report resources."""
 
 from datetime import datetime
 from typing import Any, Optional
@@ -22,7 +22,7 @@ class Report(BaseModel):
     type: str
     data: dict[str, Any]
     geo_point: Optional[GeoPoint] = None
-    reporter_id: Optional[str] = None
+    user_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

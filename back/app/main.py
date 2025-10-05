@@ -1,6 +1,7 @@
 """FastAPI application entrypoint."""
 
 from fastapi import FastAPI
+import logging
 
 from .api import api_router
 from .core.config import get_settings

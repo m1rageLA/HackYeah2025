@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     firebase_credentials_file: Optional[str] = None
     reports_collection: str = "reports"
     reports_backend: str = "firebase"
+    users_collection: str = "users"
+    report_status_collection: str = "report_status"
+    phone_default_region: str = "PL"
+    phone_hash_secret: str = "hackyeah-phone-secret"
+    jwt_secret_key: str = "hackyeah-jwt-secret"
+    jwt_algorithm: str = "HS256"
+    jwt_expires_days: int = 90
 
     def firebase_credentials_path(self) -> Optional[Path]:
         """Return absolute path to the Firebase service account file."""

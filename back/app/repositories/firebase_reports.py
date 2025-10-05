@@ -1,7 +1,9 @@
-"""Firebase implementation of the report repository."""
+﻿"""Firebase implementation of the report repository."""
 
 from datetime import datetime
 from typing import List, Optional
+
+import logging
 
 from google.cloud import firestore
 
@@ -9,6 +11,8 @@ from ..core.config import get_settings
 from ..core.firebase import get_firestore_client
 from ..schemas.report import GeoPoint, Report, ReportCreate
 from .protocols import ReportRepository
+
+logger = logging.getLogger('reports')  # DEBUG_REPORT
 
 
 def _serialize_geo_point(geo_point: Optional[GeoPoint]) -> Optional[firestore.GeoPoint]:
@@ -31,12 +35,16 @@ def _snapshot_to_report(snapshot: firestore.DocumentSnapshot) -> Report:
     updated_at = data.get("updated_at")
     if not isinstance(updated_at, datetime):
         updated_at = None
+    user_id = data.get("user_id")
+    if user_id is None:
+        # Backward compatibility for historical records that used reporter_id as user identifier.
+        user_id = data.get("reporter_id")
     return Report(
         id=snapshot.id,
         type=data.get("type", ""),
         data=data.get("data", {}),
         geo_point=_deserialize_geo_point(data.get("geo_point")),
-        reporter_id=data.get("reporter_id"),
+        user_id=user_id,
         created_at=created_at,
         updated_at=updated_at,
     )
@@ -55,15 +63,16 @@ class FirebaseReportRepository(ReportRepository):
             self._client = get_firestore_client()
         return self._client
 
-    def create(self, payload: ReportCreate, reporter_id: Optional[str]) -> Report:
+    def create(self, payload: ReportCreate, user_id: Optional[str]) -> Report:
         collection = self.client.collection(self._collection_name)
         document_ref = collection.document()
+        logger.debug('DEBUG_REPORT create payload type=%s user_id=%s', payload.type, user_id)  # DEBUG_REPORT
         document_ref.set(
             {
                 "type": payload.type,
                 "data": payload.data,
                 "geo_point": _serialize_geo_point(payload.geo_point),
-                "reporter_id": reporter_id,
+                "user_id": user_id,
                 "created_at": firestore.SERVER_TIMESTAMP,
                 "updated_at": firestore.SERVER_TIMESTAMP,
             }
@@ -78,3 +87,10 @@ class FirebaseReportRepository(ReportRepository):
         query = collection.order_by("created_at", direction=firestore.Query.DESCENDING)
         snapshots = query.stream()
         return [_snapshot_to_report(snapshot) for snapshot in snapshots]
+
+    def get(self, report_id: str) -> Optional[Report]:
+        document_ref = self.client.collection(self._collection_name).document(report_id)
+        snapshot = document_ref.get()
+        if not snapshot.exists:
+            return None
+        return _snapshot_to_report(snapshot)
