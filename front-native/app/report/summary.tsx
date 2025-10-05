@@ -148,7 +148,7 @@ export default function ConfirmReportComponent() {
       'data to submit',
       await convertFileToBase64(data.data!.evidence as any),
     );
-    fetch('http://34.57.50.103:8000/reports', {
+    fetch('https://civisafe.online/reports', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
