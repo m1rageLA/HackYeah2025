@@ -1,19 +1,270 @@
-import { useMemo, useState } from 'react'
-import MapView, { reports } from './MapView.jsx'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import MapView from './MapView.jsx'
 import './App.css'
 
-const PRIORITY_ORDER = {
-  red: 0,
-  orange: 1,
-  yellow: 2,
-  gray: 3,
+const PRIORITY_META = {
+  red: {
+    order: 0,
+    filterLabel: 'Krytyczne zgłoszenia',
+    itemLabel: 'Krytyczny',
+    color: '#f87171',
+  },
+  orange: {
+    order: 1,
+    filterLabel: 'Wysokie zgłoszenia',
+    itemLabel: 'Wysoki',
+    color: '#fb923c',
+  },
+  yellow: {
+    order: 2,
+    filterLabel: 'Średnie zgłoszenia',
+    itemLabel: 'Średni',
+    color: '#facc15',
+  },
+  gray: {
+    order: 3,
+    filterLabel: 'Niskie zgłoszenia',
+    itemLabel: 'Niski',
+    color: '#94a3b8',
+  },
 }
 
-const PRIORITY_LABELS = {
-  red: 'Krytyczne zgłoszenia',
-  orange: 'Wysokie zgłoszenia',
-  yellow: 'Średnie zgłoszenia',
-  gray: 'Niskie zgłoszenia',
+const PRIORITY_ORDER = Object.fromEntries(
+  Object.entries(PRIORITY_META).map(([key, value]) => [key, value.order]),
+)
+
+const PRIORITY_LABELS = Object.fromEntries(
+  Object.entries(PRIORITY_META).map(([key, value]) => [key, value.filterLabel]),
+)
+
+const DEFAULT_PRIORITY_KEY = 'gray'
+
+const SERVER_PRIORITY_MAP = {
+  critical: 'red',
+  high: 'orange',
+  medium: 'yellow',
+  low: 'gray',
+}
+
+const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL ?? '/reports'
+const REPORTS_API_TOKEN = import.meta.env.VITE_REPORTS_API_TOKEN ?? ''
+
+const INCIDENT_TYPE_MAP = {
+  armed: { key: 'armed', label: 'Armed people' },
+  'armed-people': { key: 'armed', label: 'Armed people' },
+  'armed_people': { key: 'armed', label: 'Armed people' },
+  'armed people': { key: 'armed', label: 'Armed people' },
+  'вооруженные люди': { key: 'armed', label: 'Armed people' },
+  drones: { key: 'drones', label: 'Drones' },
+  drone: { key: 'drones', label: 'Drones' },
+  'дрон': { key: 'drones', label: 'Drones' },
+  'бпла': { key: 'drones', label: 'Drones' },
+  explosion: { key: 'explosion', label: 'Explosion' },
+  blast: { key: 'explosion', label: 'Explosion' },
+  'взрыв': { key: 'explosion', label: 'Explosion' },
+  other: { key: 'other', label: 'Other' },
+  misc: { key: 'other', label: 'Other' },
+  'другое': { key: 'other', label: 'Other' },
+  red: { key: 'priority-critical', label: 'Critical incident' },
+  orange: { key: 'priority-high', label: 'High priority incident' },
+  yellow: { key: 'priority-medium', label: 'Medium priority incident' },
+  gray: { key: 'priority-low', label: 'Low priority incident' },
+}
+
+const FALLBACK_INCIDENT_TYPE = { key: 'other', label: 'Other' }
+
+function toNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+function resolvePriorityKey(priorityValue) {
+  if (!priorityValue) {
+    return DEFAULT_PRIORITY_KEY
+  }
+
+  const normalized = String(priorityValue).trim().toLowerCase()
+
+  if (normalized in PRIORITY_META) {
+    return normalized
+  }
+
+  if (normalized in SERVER_PRIORITY_MAP) {
+    return SERVER_PRIORITY_MAP[normalized]
+  }
+
+  if (normalized.includes('kryt')) {
+    return 'red'
+  }
+  if (normalized.includes('wys')) {
+    return 'orange'
+  }
+  if (normalized.includes('sr') || normalized.includes('śred') || normalized.includes('sred')) {
+    return 'yellow'
+  }
+  if (normalized.includes('nis')) {
+    return 'gray'
+  }
+
+  return DEFAULT_PRIORITY_KEY
+}
+
+function normalizeServices(rawServices) {
+  if (!rawServices) {
+    return []
+  }
+
+  if (Array.isArray(rawServices)) {
+    return rawServices
+      .map((service) => {
+        if (typeof service === 'string') {
+          return service.trim()
+        }
+        if (service && typeof service.name === 'string') {
+          return service.name.trim()
+        }
+        return null
+      })
+      .filter((service) => Boolean(service))
+  }
+
+  if (typeof rawServices === 'string') {
+    return rawServices
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+  }
+
+  return []
+}
+
+function resolveIncidentType(typeValue) {
+  if (!typeValue) {
+    return FALLBACK_INCIDENT_TYPE
+  }
+
+  const normalized = String(typeValue).trim().toLowerCase()
+  return INCIDENT_TYPE_MAP[normalized] ?? FALLBACK_INCIDENT_TYPE
+}
+
+function formatRelativeMinutes(minutes) {
+  if (!Number.isFinite(minutes)) {
+    return 'Brak danych'
+  }
+
+  if (minutes <= 1) {
+    return 'Przed chwilą'
+  }
+
+  if (minutes < 60) {
+    return `${minutes} minut temu`
+  }
+
+  const hours = Math.round(minutes / 60)
+  if (hours === 1) {
+    return '1 godzina temu'
+  }
+  if (hours < 24) {
+    return `${hours} godzin temu`
+  }
+
+  const days = Math.round(hours / 24)
+  if (days === 1) {
+    return '1 dzień temu'
+  }
+
+  return `${days} dni temu`
+}
+
+function computeLastSeenMeta({ lastSeenAt, updatedAt, createdAt }) {
+  const candidate = lastSeenAt ?? updatedAt ?? createdAt
+  if (!candidate) {
+    return { label: 'Brak danych', minutes: Number.POSITIVE_INFINITY }
+  }
+
+  const timestamp = new Date(candidate)
+  if (Number.isNaN(timestamp.getTime())) {
+    return { label: 'Brak danych', minutes: Number.POSITIVE_INFINITY }
+  }
+
+  const diff = Math.max(0, Date.now() - timestamp.getTime())
+  const minutes = Math.round(diff / 60000)
+
+  return {
+    label: formatRelativeMinutes(minutes),
+    minutes,
+  }
+}
+
+function normalizeReport(apiReport) {
+  if (!apiReport || typeof apiReport !== 'object') {
+    return null
+  }
+
+  const data = apiReport.data && typeof apiReport.data === 'object' ? apiReport.data : {}
+  const geoPoint = apiReport.geo_point && typeof apiReport.geo_point === 'object' ? apiReport.geo_point : {}
+
+  const priorityKey = resolvePriorityKey(
+    data.priorityKey ??
+      data.priority_key ??
+      data.priority ??
+      apiReport.priority ??
+      apiReport.type,
+  )
+  const priorityMeta = PRIORITY_META[priorityKey] ?? PRIORITY_META[DEFAULT_PRIORITY_KEY]
+
+  const lat =
+    toNumber(data.lat ?? data.latitude ?? geoPoint.lat ?? geoPoint.latitude) ?? null
+  const lng =
+    toNumber(data.lng ?? data.longitude ?? geoPoint.lng ?? geoPoint.longitude) ?? null
+
+  const incidentTypeSource =
+    data.type ?? data.incidentType ?? data.incident_type ?? apiReport.type ?? data.category
+  const incidentType = resolveIncidentType(incidentTypeSource)
+  const rawIncident = data.incident ?? data.category ?? incidentTypeSource ?? ''
+
+  const { label: lastSeen, minutes: lastSeenMinutes } = computeLastSeenMeta({
+    lastSeenAt: data.lastSeenAt ?? data.last_seen_at,
+    updatedAt: apiReport.updated_at,
+    createdAt: apiReport.created_at,
+  })
+
+  const reputationRaw = toNumber(data.reputation ?? data.rating ?? 0)
+  const reputation = Number.isFinite(reputationRaw)
+    ? Math.min(Math.max(reputationRaw, 0), 5)
+    : 0
+
+  const note = data.note ?? data.description ?? ''
+
+  return {
+    id: apiReport.id ?? data.id ?? Math.random().toString(36).slice(2),
+    lat,
+    lng,
+    title: data.title ?? data.name ?? incidentType.label,
+    city: data.city ?? data.location ?? 'Nieznana lokalizacja',
+    incident: incidentType.label,
+    incidentRaw: rawIncident,
+    incidentKey: incidentType.key,
+    weaponType: data.weaponType ?? data.weapon_type ?? data.weapon ?? 'Brak danych',
+    lastSeen,
+    note: note.length > 0 ? note : 'Brak dodatkowych informacji',
+    services: normalizeServices(data.services),
+    priority: data.priorityLabel ?? data.priority_label ?? priorityMeta.itemLabel,
+    priorityColor: data.priorityColor ?? data.priority_color ?? priorityMeta.color,
+    priorityKey,
+    reputation,
+    lastSeenMinutes,
+  }
 }
 
 function IconGlobe() {
@@ -97,18 +348,74 @@ function IconHand() {
 }
 
 function App() {
+  const [reports, setReports] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
   const [, setMeasurement] = useState(null)
   const [isInfoOpen, setIsInfoOpen] = useState(false)
   const [isMeasuring, setIsMeasuring] = useState(false)
   const [dispatchContext, setDispatchContext] = useState(null)
   const [sortMode, setSortMode] = useState('priority')
-  const [activeFilters, setActiveFilters] = useState(['red', 'orange', 'yellow', 'gray'])
+  const [activeFilters, setActiveFilters] = useState(() => Object.keys(PRIORITY_ORDER))
+  const [selectedReportId, setSelectedReportId] = useState(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadReports() {
+      setIsLoading(true)
+      setLoadError(null)
+
+      try {
+        const headers = {
+          Accept: 'application/json',
+        }
+
+        if (REPORTS_API_TOKEN) {
+          headers.authorization = REPORTS_API_TOKEN
+        }
+
+        const response = await fetch(REPORTS_API_URL, {
+          headers,
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Serwer zwrócił status ${response.status}`)
+        }
+
+        const payload = await response.json()
+        const normalized = Array.isArray(payload)
+          ? payload.map((item) => normalizeReport(item)).filter(Boolean)
+          : []
+
+        setReports(normalized)
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return
+        }
+
+        console.error('Nie udało się pobrać raportów', error)
+        setLoadError(error)
+        setReports([])
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    loadReports()
+
+    return () => {
+      controller.abort()
+    }
+  }, [])
 
   const priorityStyles = useMemo(() => {
-    return reports.reduce((acc, report) => {
-      if (!acc[report.priorityKey]) {
-        acc[report.priorityKey] = report.priorityColor
-      }
+    return Object.keys(PRIORITY_META).reduce((acc, key) => {
+      const match = reports.find((report) => report.priorityKey === key)
+      acc[key] = match?.priorityColor ?? PRIORITY_META[key].color
       return acc
     }, {})
   }, [reports])
@@ -124,22 +431,38 @@ function App() {
 
   const filteredReports = useMemo(() => {
     return reports.filter((report) => activeFilters.includes(report.priorityKey))
-  }, [activeFilters])
+  }, [activeFilters, reports])
+
+  useEffect(() => {
+    if (!selectedReportId) {
+      return
+    }
+
+    const stillVisible = filteredReports.some((report) => report.id === selectedReportId)
+    if (!stillVisible) {
+      setSelectedReportId(null)
+    }
+  }, [filteredReports, selectedReportId])
 
   const sortedReports = useMemo(() => {
     const items = [...filteredReports]
 
+    const getMinutes = (value) => (Number.isFinite(value) ? value : Number.POSITIVE_INFINITY)
+    const getReputation = (value) => (Number.isFinite(value) ? value : 0)
+    const getPriorityOrder = (report) =>
+      PRIORITY_ORDER[report.priorityKey] ?? Number.MAX_SAFE_INTEGER
+
     if (sortMode === 'reputation') {
-      items.sort((a, b) => b.reputation - a.reputation)
+      items.sort((a, b) => getReputation(b.reputation) - getReputation(a.reputation))
     } else if (sortMode === 'time') {
-      items.sort((a, b) => a.lastSeenMinutes - b.lastSeenMinutes)
+      items.sort((a, b) => getMinutes(a.lastSeenMinutes) - getMinutes(b.lastSeenMinutes))
     } else {
       items.sort((a, b) => {
-        const orderDiff = PRIORITY_ORDER[a.priorityKey] - PRIORITY_ORDER[b.priorityKey]
+        const orderDiff = getPriorityOrder(a) - getPriorityOrder(b)
         if (orderDiff !== 0) {
           return orderDiff
         }
-        return a.lastSeenMinutes - b.lastSeenMinutes
+        return getMinutes(a.lastSeenMinutes) - getMinutes(b.lastSeenMinutes)
       })
     }
 
@@ -152,6 +475,20 @@ function App() {
       : sortMode === 'time'
         ? 'Posortowane według czasu ostatniego zgłoszenia'
         : 'Aktualne zgłoszenia według priorytetu'
+
+  const handleSelectReport = useCallback((reportId) => {
+    setSelectedReportId(reportId)
+  }, [])
+
+  const handleReportKeyDown = useCallback(
+    (event, reportId) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        handleSelectReport(reportId)
+      }
+    },
+    [handleSelectReport],
+  )
 
   const handleToggleMeasure = () => {
     setIsMeasuring((prev) => {
@@ -239,9 +576,12 @@ function App() {
           </div>
         </div>
         <MapView
+          reports={filteredReports}
           isMeasuring={isMeasuring}
           onMeasurementChange={setMeasurement}
           onDispatchRequest={handleDispatchRequest}
+          selectedReportId={selectedReportId}
+          onSelectReport={handleSelectReport}
         />
       </main>
 
@@ -276,37 +616,60 @@ function App() {
                 Reputacja
               </button>
             </div>
-            <div className="reports-filter-group" role="group" aria-label="Filtr priorytetów">
-              {Object.keys(PRIORITY_ORDER).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`reports-filter-dot${activeFilters.includes(key) ? ' active' : ''}`}
-                  onClick={() => toggleFilter(key)}
-                  aria-pressed={activeFilters.includes(key)}
-                  aria-label={PRIORITY_LABELS[key]}
-                  title={PRIORITY_LABELS[key]}
-                  style={{ '--priority-color': priorityStyles[key] }}
-                />
-              ))}
+            <div className="reports-filter-row">
+              <div className="reports-filter-group" role="group" aria-label="Filtr priorytetów">
+                {Object.keys(PRIORITY_ORDER).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`reports-filter-dot${activeFilters.includes(key) ? ' active' : ''}`}
+                    onClick={() => toggleFilter(key)}
+                    aria-pressed={activeFilters.includes(key)}
+                    aria-label={PRIORITY_LABELS[key]}
+                    title={PRIORITY_LABELS[key]}
+                    style={{ '--priority-color': priorityStyles[key] ?? PRIORITY_META[key].color }}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
         <ul className="reports-list">
-          {sortedReports.map((report) => (
-            <li key={report.id} className="reports-list-item" style={{ '--priority-color': report.priorityColor }}>
-              <span className="reports-priority-indicator" aria-hidden="true" />
-              <div className="reports-item-content">
-                <h3>{report.title}</h3>
-                <p className="reports-item-meta">
-                  <span className="reports-item-priority">{report.priority}</span>
-                  <span>{report.city}</span>
-                </p>
-                <p className="reports-item-rating">Reputacja: {report.reputation.toFixed(1)} / 5</p>
-              </div>
-              <span className="reports-item-time">{report.lastSeen}</span>
+          {isLoading && (
+            <li className="reports-list-empty" role="status">Ładowanie raportów…</li>
+          )}
+          {!isLoading && loadError && (
+            <li className="reports-list-empty" role="alert">
+              Nie udało się pobrać raportów. Spróbuj ponownie później.
             </li>
-          ))}
+          )}
+          {!isLoading && !loadError && sortedReports.length === 0 && (
+            <li className="reports-list-empty">Brak zgłoszeń do wyświetlenia.</li>
+          )}
+          {!isLoading && !loadError &&
+            sortedReports.map((report) => (
+              <li
+                key={report.id}
+                className={`reports-list-item${report.id === selectedReportId ? ' selected' : ''}`}
+                style={{ '--priority-color': report.priorityColor }}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelectReport(report.id)}
+                onKeyDown={(event) => handleReportKeyDown(event, report.id)}
+                aria-pressed={report.id === selectedReportId}
+              >
+                <span className="reports-priority-indicator" aria-hidden="true" />
+                <div className="reports-item-content">
+                  <h3>{report.title}</h3>
+                  <p className="reports-item-meta">
+                    <span className="reports-item-priority">{report.priority}</span>
+                    <span>{report.city}</span>
+                  </p>
+                  <p className="reports-item-rating">Reputacja: {report.reputation.toFixed(1)} / 5</p>
+                </div>
+                <span className="reports-item-time">{report.lastSeen}</span>
+              </li>
+            ))}
         </ul>
       </aside>
 
@@ -347,9 +710,6 @@ function App() {
               </p>
               <p>
                 Incydent: <strong>{dispatchContext.report.incident}</strong>
-              </p>
-              <p>
-                Typ uzbrojenia: <strong>{dispatchContext.report.weaponType}</strong>
               </p>
               <p>
                 Ostatnia obserwacja: <strong>{dispatchContext.report.lastSeen}</strong>

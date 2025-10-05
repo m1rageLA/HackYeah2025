@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import {
   CircleMarker,
@@ -11,77 +11,6 @@ import {
   ZoomControl,
 } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-
-export const reports = [
-  {
-    id: 1,
-    lat: 52.2297,
-    lng: 21.0145,
-    title: 'Warszawski węzeł logistyczny',
-    city: 'Warszawa',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Konwój ustawiony w pobliżu wschodniej drogi serwisowej. Jednostki lokalne zgłaszają ciężki sprzęt i uzbrojony personel.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Krytyczny',
-    priorityColor: '#f87171',
-    priorityKey: 'red',
-    reputation: 4.8,
-    lastSeenMinutes: 30,
-  },
-  {
-    id: 2,
-    lat: 51.0647,
-    lng: 19.945,
-    title: 'Zajezdnia Stare Miasto',
-    city: 'Kraków',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Cywile zgłaszają kolumnę opancerzoną przemieszczającą się w pobliżu infrastruktury tramwajowej. Tłumy pozostają w schronieniu.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Wysoki',
-    priorityColor: '#fb923c',
-    priorityKey: 'orange',
-    reputation: 4.2,
-    lastSeenMinutes: 45,
-  },
-  {
-    id: 3,
-    lat: 51.1079,
-    lng: 17.0385,
-    title: 'Brama strefy przemysłowej',
-    city: 'Wrocław',
-    incident: 'Ludzie z bronią',
-    weaponType: 'Ciężki sprzęt',
-    lastSeen: '30 minut temu',
-    note: 'Dron zwiadowczy potwierdził obecność opancerzonych pojazdów utrzymujących pozycję przy zachodniej bramie załadunkowej.',
-    services: ['Policja', 'Straż Pożarna'],
-    priority: 'Średni',
-    priorityColor: '#facc15',
-    priorityKey: 'yellow',
-    reputation: 3.6,
-    lastSeenMinutes: 65,
-  },
-  {
-    id: 4,
-    lat: 52.4064,
-    lng: 16.9252,
-    title: 'Punkt koordynacji służb pomocniczych',
-    city: 'Poznań',
-    incident: 'Wsparcie logistyczne',
-    weaponType: 'Brak',
-    lastSeen: '90 minut temu',
-    note: 'Zespół logistyczny zgłasza potrzebę monitorowania ruchu ewakuacyjnego. Sytuacja stabilna, wymagana jedynie obserwacja.',
-    services: ['Straż Pożarna'],
-    priority: 'Niski',
-    priorityColor: '#94a3b8',
-    priorityKey: 'gray',
-    reputation: 4.9,
-    lastSeenMinutes: 90,
-  },
-]
 
 const mapCenter = [52.069167, 19.480556]
 const mapZoom = 7
@@ -133,14 +62,81 @@ function MeasureController({ isMeasuring, onUpdatePoints }) {
   return null
 }
 
-function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
+function MapView({
+  reports = [],
+  isMeasuring,
+  onMeasurementChange,
+  onDispatchRequest,
+  selectedReportId = null,
+  onSelectReport,
+}) {
   const [measurePoints, setMeasurePoints] = useState([])
+  const mapRef = useRef(null)
+  const markerRefs = useRef(new Map())
 
   useEffect(() => {
     if (!isMeasuring) {
       setMeasurePoints([])
     }
   }, [isMeasuring])
+
+  const mapReports = useMemo(() => {
+    if (!Array.isArray(reports)) {
+      return []
+    }
+
+    return reports.filter((report) => Number.isFinite(report.lat) && Number.isFinite(report.lng))
+  }, [reports])
+
+  const selectedReport = useMemo(() => {
+    if (!selectedReportId) {
+      return null
+    }
+
+    return mapReports.find((report) => report.id === selectedReportId) ?? null
+  }, [mapReports, selectedReportId])
+
+  useEffect(() => {
+    if (!mapRef.current) {
+      return
+    }
+
+    if (!selectedReport) {
+      mapRef.current.closePopup()
+      return
+    }
+
+    const focusMarker = (marker) => {
+      const targetLatLng = marker.getLatLng()
+      const currentZoom = mapRef.current?.getZoom() ?? mapZoom
+      const targetZoom = Math.max(currentZoom, 11)
+
+      mapRef.current?.flyTo(targetLatLng, targetZoom, { duration: 0.6 })
+      marker.openPopup()
+    }
+
+    const marker = markerRefs.current.get(selectedReport.id)
+    if (marker) {
+      focusMarker(marker)
+      return
+    }
+
+    mapRef.current.closePopup()
+    const animationId = requestAnimationFrame(() => {
+      if (!mapRef.current || !selectedReport) {
+        return
+      }
+
+      const nextMarker = markerRefs.current.get(selectedReport.id)
+      if (nextMarker) {
+        focusMarker(nextMarker)
+      }
+    })
+
+    return () => {
+      cancelAnimationFrame(animationId)
+    }
+  }, [selectedReport])
 
   const measurement = useMemo(() => {
     if (measurePoints.length === 0) {
@@ -190,6 +186,10 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
     return null
   }, [measurePoints])
 
+  const handleMapCreated = useCallback((mapInstance) => {
+    mapRef.current = mapInstance
+  }, [])
+
   const measurementStatus = useMemo(() => {
     if (isMeasuring) {
       if (!measurement) {
@@ -231,7 +231,13 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
 
   return (
     <div className="map-wrapper">
-      <MapContainer center={mapCenter} zoom={mapZoom} className="map-container" zoomControl={false}>
+      <MapContainer
+        center={mapCenter}
+        zoom={mapZoom}
+        className="map-container"
+        zoomControl={false}
+        whenCreated={handleMapCreated}
+      >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap współtwórcy &copy; CARTO"
@@ -267,52 +273,73 @@ function MapView({ isMeasuring, onMeasurementChange, onDispatchRequest }) {
           <Marker position={midpoint} icon={distanceIcon} interactive={false} />
         )}
 
-        {reports.map((report) => (
-          <CircleMarker
-            key={report.id}
-            center={[report.lat, report.lng]}
-            radius={12}
-            className="incident-marker"
-            pathOptions={{ color: '#f87171', fillColor: '#f87171', fillOpacity: 0.9 }}
-          >
-            <Popup>
-              <div className="popup-card">
-                <p className="popup-meta">{report.city}</p>
-                <h3>{report.title}</h3>
-                <div className="popup-details">
-                  <div className="popup-detail">
-                    <span>Rodzaj incydentu</span>
-                    <p>{report.incident}</p>
+        {mapReports.map((report) => {
+          const priorityColor = report.priorityColor ?? '#f87171'
+          const isSelected = selectedReport?.id === report.id
+
+          return (
+            <CircleMarker
+              key={report.id}
+              center={[report.lat, report.lng]}
+              radius={isSelected ? 14 : 12}
+              className={`incident-marker${isSelected ? ' incident-marker-selected' : ''}`}
+              pathOptions={{
+                color: priorityColor,
+                fillColor: priorityColor,
+                fillOpacity: isSelected ? 1 : 0.9,
+                opacity: isSelected ? 1 : 0.95,
+                weight: isSelected ? 3 : 2,
+              }}
+              ref={(layer) => {
+                if (!layer) {
+                  markerRefs.current.delete(report.id)
+                } else {
+                  markerRefs.current.set(report.id, layer)
+                }
+              }}
+              eventHandlers={{
+                click: () => onSelectReport?.(report.id),
+              }}
+            >
+              <Popup>
+                <div className="popup-card">
+                  <p className="popup-meta">{report.city}</p>
+                  <h3>{report.title}</h3>
+                  <div className="popup-details">
+                    <div className="popup-detail">
+                      <span>Rodzaj incydentu</span>
+                      <p>{report.incident}</p>
+                    </div>
+                    <div className="popup-detail">
+                      <span>Ostatnia obserwacja</span>
+                      <p>{report.lastSeen}</p>
+                    </div>
                   </div>
-                  <div className="popup-detail">
-                    <span>Typ uzbrojenia</span>
-                    <p>{report.weaponType}</p>
-                  </div>
-                  <div className="popup-detail">
-                    <span>Ostatnia obserwacja</span>
-                    <p>{report.lastSeen}</p>
+                  <p className="popup-note">{report.note}</p>
+                  <div className="popup-actions">
+                    <span>Skieruj do</span>
+                    <div className="popup-action-buttons">
+                      {report.services.length > 0 ? (
+                        report.services.map((service) => (
+                          <button
+                            key={service}
+                            className="popup-action-button"
+                            type="button"
+                            onClick={() => handleDispatch(report, service)}
+                          >
+                            {service}
+                          </button>
+                        ))
+                      ) : (
+                        <span className="popup-action-placeholder">Brak sugerowanych służb</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <p className="popup-note">{report.note}</p>
-                <div className="popup-actions">
-                  <span>Skieruj do</span>
-                  <div className="popup-action-buttons">
-                    {report.services.map((service) => (
-                      <button
-                        key={service}
-                        className="popup-action-button"
-                        type="button"
-                        onClick={() => handleDispatch(report, service)}
-                      >
-                        {service}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Popup>
-          </CircleMarker>
-        ))}
+              </Popup>
+            </CircleMarker>
+          )
+        })}
       </MapContainer>
 
       <div className="map-tint" aria-hidden="true" />
