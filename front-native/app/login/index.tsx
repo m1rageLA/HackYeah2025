@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRootContext } from '../context/rootContext';
+import { useRoot } from '../context/rootContext';
 
 const GradientBackground = cssInterop(LinearGradient, {
   className: 'style',
@@ -20,7 +20,7 @@ const GradientBackground = cssInterop(LinearGradient, {
 export default function LoginScreen() {
   const router = useRouter();
 
-  const { updateData } = useRootContext();
+  const { updateData } = useRoot();
 
   const handleContinue = () => {
     updateData({ isLogged: true });

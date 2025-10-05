@@ -1,12 +1,11 @@
-import React, { useCallback, useState, useEffect } from 'react';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
+  Alert,
   Modal,
   Platform,
-  TextInput,
-  Alert,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -14,63 +13,207 @@ import { useForm } from '@/app/context/FormContext';
 
 type LocationMode = 'nearby' | 'manual';
 
-interface Props {
-  onContinue?: () => void;
-}
-
 type Coordinate = { latitude: number; longitude: number };
 
-export default function LocationReportComponent({ onContinue }: Props) {
+type LeafletNamespace = typeof import('leaflet');
+
+declare global {
+  interface Window {
+    L?: LeafletNamespace;
+    __leafletLoader?: Promise<LeafletNamespace>;
+  }
+}
+
+const FALLBACK_COORDINATE: Coordinate = {
+  latitude: 52.2297,
+  longitude: 21.0122,
+};
+
+async function loadLeaflet(): Promise<LeafletNamespace> {
+  if (typeof window === 'undefined') {
+    throw new Error('Leaflet can only load in browser context');
+  }
+
+  if (window.L) {
+    return window.L;
+  }
+  if (window.__leafletLoader) {
+    return window.__leafletLoader;
+  }
+
+  window.__leafletLoader = new Promise<LeafletNamespace>((resolve, reject) => {
+    const leafletCssId = 'leaflet-css';
+    if (!document.getElementById(leafletCssId)) {
+      const link = document.createElement('link');
+      link.id = leafletCssId;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.crossOrigin = '';
+      document.head.appendChild(link);
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.async = true;
+    script.crossOrigin = '';
+    script.onload = () => {
+      if (window.L) {
+        resolve(window.L);
+      } else {
+        reject(new Error('Leaflet failed to load.'));
+      }
+    };
+    script.onerror = () => reject(new Error('Leaflet script failed to load.'));
+    document.body.appendChild(script);
+  });
+
+  return window.__leafletLoader;
+}
+
+export default function LocationReportComponent({
+  onContinue,
+}: {
+  onContinue?: () => void;
+}) {
   const { updateData } = useForm();
-  const [mode, setMode] = useState<LocationMode | null>(null);
+  const [manualMode, setManualMode] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCoordinate, setSelectedCoordinate] =
     useState<Coordinate | null>(null);
-  const [latInput, setLatInput] = useState('');
-  const [lngInput, setLngInput] = useState('');
+  const [mapError, setMapError] = useState<string | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
-  // ✅ Handle nearby (GPS) mode
-  const handleLocationUpdate = useCallback(
-    async (mode: LocationMode) => {
-      setMode(mode);
+  const initialiseMap = useCallback(async () => {
+    if (!modalVisible || Platform.OS !== 'web') {
+      return;
+    }
+    if (!mapContainerRef.current) {
+      return;
+    }
 
-      if (mode === 'nearby') {
-        try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Błąd', 'Brak dostępu do lokalizacji.');
-            return;
-          }
-          const location = await Location.getCurrentPositionAsync({});
-          const coords = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-          };
+    try {
+      const L = await loadLeaflet();
+      setMapError(null);
 
-          updateData((prev) => ({
-            data: {
-              ...(prev.data || {}),
-              locationMode: 'nearby',
-              locationCoordinates: coords,
-            },
-          }));
-          onContinue?.();
-        } catch (err) {
-          console.error(err);
-          Alert.alert('Błąd', 'Nie udało się pobrać lokalizacji GPS.');
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+
+      const defaultPoint = selectedCoordinate || FALLBACK_COORDINATE;
+      const map = L.map(mapContainerRef.current, {
+        center: [defaultPoint.latitude, defaultPoint.longitude],
+        zoom: 13,
+      });
+      mapInstanceRef.current = map;
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+
+      const setMarker = (coords: Coordinate) => {
+        const latLng: [number, number] = [coords.latitude, coords.longitude];
+        if (markerRef.current) {
+          markerRef.current.setLatLng(latLng);
+        } else {
+          markerRef.current = L.marker(latLng).addTo(map);
         }
+      };
+
+      if (selectedCoordinate) {
+        setMarker(selectedCoordinate);
       }
 
-      if (mode === 'manual') {
-        setModalVisible(true);
-      }
-    },
-    [onContinue, updateData],
-  );
+      map.on('click', (event: any) => {
+        const coords = {
+          latitude: event.latlng.lat,
+          longitude: event.latlng.lng,
+        };
+        setSelectedCoordinate(coords);
+        setMarker(coords);
+      });
+    } catch (error) {
+      console.error('Map initialisation failed', error);
+      setMapError(
+        'Nie udało się załadować mapy. Sprawdź połączenie internetowe.',
+      );
+    }
+  }, [modalVisible, selectedCoordinate]);
 
-  // ✅ Manual confirmation
+  useEffect(() => {
+    if (modalVisible) {
+      initialiseMap();
+    }
+    return () => {
+      if (!modalVisible && mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markerRef.current = null;
+      }
+    };
+  }, [modalVisible, initialiseMap]);
+
+  useEffect(() => {
+    if (
+      modalVisible &&
+      mapInstanceRef.current &&
+      selectedCoordinate &&
+      Platform.OS === 'web'
+    ) {
+      const L = window.L;
+      if (!L) return;
+      const latLng: [number, number] = [
+        selectedCoordinate.latitude,
+        selectedCoordinate.longitude,
+      ];
+      if (markerRef.current) {
+        markerRef.current.setLatLng(latLng);
+      } else {
+        markerRef.current = L.marker(latLng).addTo(mapInstanceRef.current);
+      }
+      mapInstanceRef.current.panTo(latLng);
+    }
+  }, [modalVisible, selectedCoordinate]);
+
+  const handleNearbySelect = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Błąd', 'Brak dostępu do lokalizacji.');
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      };
+
+      updateData((prev) => ({
+        data: {
+          ...(prev.data || {}),
+          locationMode: 'nearby',
+          locationCoordinates: coords,
+        },
+      }));
+      onContinue?.();
+    } catch (error) {
+      console.error('Failed to fetch GPS coordinates', error);
+      Alert.alert('Błąd', 'Nie udało się pobrać lokalizacji GPS.');
+    }
+  }, [onContinue, updateData]);
+
+  const handleManualSelect = useCallback(() => {
+    setManualMode(true);
+    setSelectedCoordinate((prev) => prev || FALLBACK_COORDINATE);
+    setModalVisible(true);
+  }, []);
+
   const handleConfirmManual = useCallback(() => {
-    if (!selectedCoordinate) return;
+    if (!selectedCoordinate) {
+      return;
+    }
     updateData((prev) => ({
       data: {
         ...(prev.data || {}),
@@ -80,22 +223,10 @@ export default function LocationReportComponent({ onContinue }: Props) {
     }));
     setModalVisible(false);
     onContinue?.();
-  }, [selectedCoordinate, updateData, onContinue]);
-
-  // ✅ Update coordinate when inputs change (for web)
-  useEffect(() => {
-    const lat = parseFloat(latInput.replace(',', '.'));
-    const lng = parseFloat(lngInput.replace(',', '.'));
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setSelectedCoordinate({ latitude: lat, longitude: lng });
-    } else {
-      setSelectedCoordinate(null);
-    }
-  }, [latInput, lngInput]);
+  }, [onContinue, selectedCoordinate, updateData]);
 
   return (
     <View className="flex-1 items-stretch px-3 mt-10">
-      {/* Header */}
       <View className="items-center gap-3">
         <MaterialCommunityIcons
           name="map-marker-radius"
@@ -110,13 +241,11 @@ export default function LocationReportComponent({ onContinue }: Props) {
         </Text>
       </View>
 
-      {/* Options */}
       <View className="mt-10 gap-4">
-        {/* Nearby */}
         <TouchableOpacity
           activeOpacity={0.9}
           className="rounded-2xl bg-[#1E5BFF] px-5 py-5"
-          onPress={() => handleLocationUpdate('nearby')}
+          onPress={handleNearbySelect}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-3">
@@ -148,11 +277,10 @@ export default function LocationReportComponent({ onContinue }: Props) {
           lub
         </Text>
 
-        {/* Manual */}
         <TouchableOpacity
           activeOpacity={0.9}
           className="rounded-2xl bg-[rgba(13,32,61,0.9)] px-5 py-5"
-          onPress={() => handleLocationUpdate('manual')}
+          onPress={handleManualSelect}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-row items-center gap-3">
@@ -181,72 +309,48 @@ export default function LocationReportComponent({ onContinue }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ Map modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.5)] px-3">
-          <View className="w-full max-w-[600px] rounded-3xl bg-[#0C1B34] p-4">
-            <Text className="text-lg font-semibold text-[#F5F8FF] text-center mb-3">
-              Wybierz lokalizację
+      <Modal visible={modalVisible} animationType="fade" transparent>
+        <View className="flex-1 justify-center items-center bg-[rgba(0,0,0,0.45)] px-3">
+          <View className="w-full max-w-[640px] rounded-3xl bg-[#0C1B34] p-4 shadow-lg">
+            <Text className="text-lg font-semibold text-[#F5F8FF] text-center">
+              Dotknij mapy, aby wybrać lokalizację
+            </Text>
+            <Text className="mt-1 text-center text-xs text-[#8EA1C1]">
+              {mapError
+                ? mapError
+                : 'Kliknij w punkt na mapie. Możesz przesuwać i przybliżać, aby ustawić dokładną lokalizację.'}
             </Text>
 
-            {Platform.OS === 'web' ? (
-              <>
-                <iframe
-                  src={`https://www.google.com/maps?q=${
-                    selectedCoordinate?.latitude || 52.2297
-                  },${
-                    selectedCoordinate?.longitude || 21.0122
-                  }&z=12&output=embed`}
-                  width="100%"
-                  height="300"
-                  style={{ border: 0, borderRadius: 16 }}
-                  loading="lazy"
-                />
-                <View className="mt-4 gap-3">
-                  <TextInput
-                    value={latInput}
-                    onChangeText={setLatInput}
-                    className="h-10 rounded-xl border border-[rgba(61,96,143,0.4)] bg-[rgba(8,22,44,0.9)] px-3 text-sm text-[#E1EBFF]"
-                    placeholder="Szerokość geograficzna"
-                    placeholderTextColor="rgba(225,235,255,0.45)"
-                  />
-                  <TextInput
-                    value={lngInput}
-                    onChangeText={setLngInput}
-                    className="h-10 rounded-xl border border-[rgba(61,96,143,0.4)] bg-[rgba(8,22,44,0.9)] px-3 text-sm text-[#E1EBFF]"
-                    placeholder="Długość geograficzna"
-                    placeholderTextColor="rgba(225,235,255,0.45)"
-                  />
-                </View>
-              </>
-            ) : (
-              // ✅ Native map picker
-              <View className="h-[300px] w-full rounded-2xl overflow-hidden bg-black">
-                {/** You can use react-native-maps here */}
-              </View>
-            )}
+            <View
+              ref={mapContainerRef}
+              className="mt-4 h-[360px] w-full overflow-hidden rounded-2xl bg-[rgba(6,14,28,0.8)]"
+            />
 
-            {selectedCoordinate && (
+            {selectedCoordinate ? (
               <Text className="mt-3 text-center text-xs text-[#9EB2D0]">
                 Wybrane: {selectedCoordinate.latitude.toFixed(5)},{' '}
                 {selectedCoordinate.longitude.toFixed(5)}
               </Text>
-            )}
+            ) : null}
 
-            <View className="flex-row justify-end mt-5 gap-3">
+            <View className="mt-5 flex-row justify-end gap-3">
               <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                className="rounded-xl px-5 py-3 bg-[rgba(255,255,255,0.1)]"
+                onPress={() => {
+                  setModalVisible(false);
+                  setMapError(null);
+                }}
+                className="rounded-xl px-5 py-3 bg-[rgba(255,255,255,0.08)]"
               >
                 <Text className="text-[#E1EBFF]">Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                disabled={!selectedCoordinate}
+                activeOpacity={0.9}
+                disabled={!selectedCoordinate || !!mapError}
                 onPress={handleConfirmManual}
                 className={`rounded-xl px-5 py-3 ${
-                  selectedCoordinate
+                  selectedCoordinate && !mapError
                     ? 'bg-[#1E5BFF]'
-                    : 'bg-[rgba(30,91,255,0.3)]'
+                    : 'bg-[rgba(30,91,255,0.35)]'
                 }`}
               >
                 <Text className="text-white font-semibold">Zatwierdź</Text>

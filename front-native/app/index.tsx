@@ -5,7 +5,7 @@ import { cssInterop } from 'nativewind';
 import React, { useEffect } from 'react';
 import { SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRootContext } from './context/rootContext';
+import { useRoot } from './context/rootContext';
 import LoadingIndicator from '@/components/LoadingIndicator';
 import { FormData } from './context/FormContext';
 
@@ -76,7 +76,7 @@ export default function MainScreen() {
     router.push('/select-category');
   };
 
-  const { data } = useRootContext();
+  const { data } = useRoot();
 
   useEffect(() => {
     console.log('isLogged', data);
