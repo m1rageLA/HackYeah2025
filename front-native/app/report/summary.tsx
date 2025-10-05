@@ -273,7 +273,7 @@ export default function ConfirmReportComponent() {
 
     try {
       const response = await Promise.race([
-        fetch('https://civisafe.online/reports', {
+        fetch('https://civisafe.online/reports/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
