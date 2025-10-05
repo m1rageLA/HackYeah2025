@@ -1,4 +1,4 @@
-"""Report service orchestrating repository operations."""
+﻿"""Report service orchestrating repository operations."""
 
 from functools import lru_cache
 from typing import List, Optional
@@ -15,13 +15,17 @@ class ReportService:
     def __init__(self, repository: ReportRepository) -> None:
         self._repository = repository
 
-    def create_report(self, payload: ReportCreate, reporter_id: Optional[str]) -> Report:
+    def create_report(self, payload: ReportCreate, user_id: Optional[str]) -> Report:
         """Persist a new report via the configured repository."""
-        return self._repository.create(payload, reporter_id)
+        return self._repository.create(payload, user_id)
 
     def list_reports(self) -> List[Report]:
         """Fetch reports via the configured repository."""
         return self._repository.list()
+
+    def get_report(self, report_id: str) -> Optional[Report]:
+        """Return a single report if it exists."""
+        return self._repository.get(report_id)
 
 
 @lru_cache
