@@ -69,6 +69,7 @@ function MapView({
   onDispatchRequest,
   selectedReportId = null,
   onSelectReport,
+  updateReportStatus,
 }) {
   const [measurePoints, setMeasurePoints] = useState([])
   const mapRef = useRef(null)
@@ -276,6 +277,13 @@ function MapView({
         {mapReports.map((report) => {
           const priorityColor = report.priorityColor ?? '#f87171'
           const isSelected = selectedReport?.id === report.id
+          const effectiveStatus = report.effectiveStatus ?? report.status ?? 'pending'
+          const statusLabel =
+            effectiveStatus === 'approved'
+              ? '✅ Zatwierdzono'
+              : effectiveStatus === 'invalid'
+                ? '❌ Odrzucono'
+                : '⏳ W trakcie'
 
           return (
             <CircleMarker
@@ -311,6 +319,10 @@ function MapView({
                       <p>{report.incident}</p>
                     </div>
                     <div className="popup-detail">
+                      <span>Status</span>
+                      <p>{statusLabel}</p>
+                    </div>
+                    <div className="popup-detail">
                       <span>Ostatnia obserwacja</span>
                       <p>{report.lastSeen}</p>
                     </div>
@@ -334,7 +346,29 @@ function MapView({
                         <span className="popup-action-placeholder">Brak sugerowanych służb</span>
                       )}
                     </div>
+                    {effectiveStatus === 'pending' && (
+                      <>
+                        <span>Zmień status</span>
+                        <div className="popup-action-buttons">
+                          <button
+                            className="popup-action-button approve"
+                            type="button"
+                            onClick={() => updateReportStatus(report.id, 'approved')}
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            className="popup-action-button invalid"
+                            type="button"
+                            onClick={() => updateReportStatus(report.id, 'invalid')}
+                          >
+                            ❌ Invalid
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
+
                 </div>
               </Popup>
             </CircleMarker>

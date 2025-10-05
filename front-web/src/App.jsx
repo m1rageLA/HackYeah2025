@@ -49,6 +49,34 @@ const SERVER_PRIORITY_MAP = {
 const REPORTS_API_URL = import.meta.env.VITE_REPORTS_API_URL ?? '/reports'
 const REPORTS_API_TOKEN = import.meta.env.VITE_REPORTS_API_TOKEN ?? ''
 
+const ARCHIVE_STORAGE_KEY = 'front-web:archivedStatuses'
+
+function loadArchivedStatuses() {
+  if (typeof window === 'undefined') {
+    return {}
+  }
+
+  try {
+    const raw = window.localStorage.getItem(ARCHIVE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch (error) {
+    console.warn('Failed to load archived statuses from storage', error)
+    return {}
+  }
+}
+
+function persistArchivedStatuses(map) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(map))
+  } catch (error) {
+    console.warn('Failed to persist archived statuses', error)
+  }
+}
+
 const INCIDENT_TYPE_MAP = {
   armed: { key: 'armed', label: 'Armed people' },
   'armed-people': { key: 'armed', label: 'Armed people' },
@@ -206,6 +234,24 @@ function computeLastSeenMeta({ lastSeenAt, updatedAt, createdAt }) {
   }
 }
 
+function normalizeStatus(statusValue) {
+  if (!(typeof statusValue == 'string' || statusValue instanceof String)) {
+    return 'pending'
+  }
+
+  const normalized = statusValue.trim().toLowerCase()
+
+  if (normalized.length === 0) {
+    return 'pending'
+  }
+
+  if (normalized === 'approved' || normalized === 'invalid' || normalized === 'pending') {
+    return normalized
+  }
+
+  return normalized
+}
+
 function normalizeReport(apiReport) {
   if (!apiReport || typeof apiReport !== 'object') {
     return null
@@ -216,12 +262,13 @@ function normalizeReport(apiReport) {
 
   const priorityKey = resolvePriorityKey(
     data.priorityKey ??
-      data.priority_key ??
-      data.priority ??
-      apiReport.priority ??
-      apiReport.type,
+    data.priority_key ??
+    data.priority ??
+    apiReport.priority ??
+    apiReport.type,
   )
   const priorityMeta = PRIORITY_META[priorityKey] ?? PRIORITY_META[DEFAULT_PRIORITY_KEY]
+  
 
   const lat =
     toNumber(data.lat ?? data.latitude ?? geoPoint.lat ?? geoPoint.latitude) ?? null
@@ -245,6 +292,8 @@ function normalizeReport(apiReport) {
     : 0
 
   const note = data.note ?? data.description ?? ''
+  // ✅ добавляем извлечение статуса
+  const status = normalizeStatus( apiReport.status?.status)
 
   return {
     id: apiReport.id ?? data.id ?? Math.random().toString(36).slice(2),
@@ -258,12 +307,13 @@ function normalizeReport(apiReport) {
     weaponType: data.weaponType ?? data.weapon_type ?? data.weapon ?? 'Brak danych',
     lastSeen,
     note: note.length > 0 ? note : 'Brak dodatkowych informacji',
-    services: normalizeServices(data.services),
+    services: normalizeServices(data.services ?? ['Police', 'Fire Department']),
     priority: data.priorityLabel ?? data.priority_label ?? priorityMeta.itemLabel,
     priorityColor: data.priorityColor ?? data.priority_color ?? priorityMeta.color,
     priorityKey,
     reputation,
     lastSeenMinutes,
+    status,
   }
 }
 
@@ -358,6 +408,79 @@ function App() {
   const [sortMode, setSortMode] = useState('priority')
   const [activeFilters, setActiveFilters] = useState(() => Object.keys(PRIORITY_ORDER))
   const [selectedReportId, setSelectedReportId] = useState(null)
+  const [archivedStatuses, setArchivedStatuses] = useState(() => loadArchivedStatuses())
+
+  useEffect(() => {
+    persistArchivedStatuses(archivedStatuses)
+  }, [archivedStatuses])
+
+  const reportsWithStatus = useMemo(() => {
+    return reports.map((report) => {
+      const storedStatus = archivedStatuses[report.id]
+      const effectiveStatus = storedStatus
+        ? normalizeStatus(storedStatus)
+        : normalizeStatus(report.localStatus ?? report.status)
+
+      return {
+        ...report,
+        effectiveStatus,
+      }
+    })
+  }, [reports, archivedStatuses])
+
+
+  async function updateReportStatus(reportId, status) {
+    console.log("sfdsassadasddsaadsadsklds");
+
+    const normalizedStatus = normalizeStatus(status)
+
+    try {
+      const response = await fetch(`${REPORTS_API_URL}/${reportId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(REPORTS_API_TOKEN ? { authorization: REPORTS_API_TOKEN } : {}),
+        },
+        body: JSON.stringify({ status: normalizedStatus }),
+      })
+
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
+      const updated = await response.json()
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id === reportId
+            ? { ...r, localStatus: normalizedStatus, effectiveStatus: normalizedStatus }
+            : r,
+        ),
+      )
+      if (normalizedStatus === 'approved' || normalizedStatus === 'invalid') {
+        setArchivedStatuses((prev) => ({
+          ...prev,
+          [reportId]: normalizedStatus,
+        }))
+      } else {
+        setArchivedStatuses((prev) => {
+          if (!(reportId in prev)) {
+            return prev
+          }
+
+          const next = { ...prev }
+          delete next[reportId]
+          return next
+        })
+      }
+      console.log('Status updated:', updated)
+      return updated
+    } catch (error) {
+      console.error('Failed to update report status:', error)
+      window.alert('Błąd aktualizacji statusu')
+    }
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -380,15 +503,16 @@ function App() {
           signal: controller.signal,
         })
 
+
         if (!response.ok) {
           throw new Error(`Serwer zwrócił status ${response.status}`)
         }
 
         const payload = await response.json()
         const normalized = Array.isArray(payload)
-          ? payload.map((item) => normalizeReport(item)).filter(Boolean)
+          ? payload.map((item) => normalizeReport(item)).filter((item)=>item.status=='pending')
           : []
-
+        console.log('Pobrane raporty', normalized)
         setReports(normalized)
       } catch (error) {
         if (controller.signal.aborted) {
@@ -430,8 +554,27 @@ function App() {
   }
 
   const filteredReports = useMemo(() => {
-    return reports.filter((report) => activeFilters.includes(report.priorityKey))
-  }, [activeFilters, reports])
+    return reportsWithStatus.filter(
+      (report) =>
+        activeFilters.includes(report.priorityKey) &&
+        report.effectiveStatus !== 'approved' &&
+        report.effectiveStatus !== 'invalid'
+    )
+  }, [activeFilters, reportsWithStatus])
+
+  const archivedReports = useMemo(() => {
+    const items = reportsWithStatus.filter(
+      (report) => report.effectiveStatus === 'approved' || report.effectiveStatus === 'invalid',
+    )
+
+    items.sort((a, b) => {
+      const safeA = Number.isFinite(a.lastSeenMinutes) ? a.lastSeenMinutes : Number.POSITIVE_INFINITY
+      const safeB = Number.isFinite(b.lastSeenMinutes) ? b.lastSeenMinutes : Number.POSITIVE_INFINITY
+      return safeA - safeB
+    })
+
+    return items
+  }, [reportsWithStatus])
 
   useEffect(() => {
     if (!selectedReportId) {
@@ -513,8 +656,17 @@ function App() {
     setDispatchContext(null)
   }
 
-  const handleConfirmDispatch = () => {
+  const handleConfirmDispatch = async () => {
+    const { report } = dispatchContext
     setDispatchContext(null)
+
+    // Обновляем локально
+    setReports(prev =>
+      prev.map(r =>
+        r.id === report.id ? { ...r, localStatus: 'dispatched', priorityColor: '#22c55e' } : r
+      )
+    )
+
     window.alert('Zgłoszenie przekazane do służb')
   }
 
@@ -576,12 +728,13 @@ function App() {
           </div>
         </div>
         <MapView
-          reports={filteredReports}
+          reports={filteredReports} 
           isMeasuring={isMeasuring}
           onMeasurementChange={setMeasurement}
           onDispatchRequest={handleDispatchRequest}
           selectedReportId={selectedReportId}
           onSelectReport={handleSelectReport}
+          updateReportStatus={updateReportStatus}
         />
       </main>
 
@@ -671,6 +824,38 @@ function App() {
               </li>
             ))}
         </ul>
+
+        <div className="reports-archive">
+          <div className="reports-archive-header">
+            <h3>Przetworzone</h3>
+            {archivedReports.length > 0 && (
+              <span className="reports-archive-count">{archivedReports.length}</span>
+            )}
+          </div>
+          {archivedReports.length === 0 ? (
+            <p className="reports-archive-empty">Nie ma przetworzonych wniosków</p>
+          ) : (
+            <ul className="reports-archive-list">
+              {archivedReports.map((report) => {
+                const statusLabel = report.effectiveStatus === 'approved' ? '✅ Approved' : '❌ Invalid'
+
+                return (
+                  <li key={report.id} className="reports-archive-item">
+                    <div className="reports-archive-main">
+                      <p className="reports-archive-title">{report.title}</p>
+                      <p className="reports-archive-meta">
+                        {report.city} | {report.lastSeen}
+                      </p>
+                    </div>
+                    <span className={`reports-archive-badge ${report.effectiveStatus}`}>
+                      {statusLabel}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
       </aside>
 
       {isInfoOpen && (
