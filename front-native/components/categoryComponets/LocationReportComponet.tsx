@@ -23,14 +23,16 @@ export default function LocationReportComponent({ onContinue }: Props) {
   );
 
   return (
-    <View className="mt-12 flex-1 items-stretch rounded-[28px] bg-[rgba(6,19,44,0.85)] px-6 py-10">
+    <View className="flex-1 items-stretch px-3 mt-10">
       <View className="items-center gap-3">
         <MaterialCommunityIcons
           name="map-marker-radius"
           size={54}
           color="#7AA7FF"
         />
-        <Text className="text-2xl font-semibold text-[#F5F8FF]">Lokalizacja</Text>
+        <Text className="text-2xl font-semibold text-[#F5F8FF]">
+          Lokalizacja
+        </Text>
         <Text className="text-center text-sm text-[#9EB2D0]">
           Twoja aktualna lokalizacja zostala automatycznie wykryta.
         </Text>
@@ -52,7 +54,9 @@ export default function LocationReportComponent({ onContinue }: Props) {
                 />
               </View>
               <View>
-                <Text className="text-lg font-semibold text-white">Obok mnie</Text>
+                <Text className="text-lg font-semibold text-white">
+                  Obok mnie
+                </Text>
                 <Text className="text-sm text-[rgba(230,237,255,0.8)]">
                   uzyj lokalizacji w poblizu mnie
                 </Text>

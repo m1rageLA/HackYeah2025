@@ -80,8 +80,8 @@ export default function TimeReportComponent({
   );
 
   return (
-    <View className="flex-1 rounded-[36px] border border-[rgba(46,74,120,0.45)] bg-transparent px-5 py-6">
-      <View className="mt-10">
+    <View className="flex-1 px-3 mt-10">
+      <View className="">
         <Text className="text-2xl font-semibold text-[#F5F8FF]">
           Kiedy to si\u0119 sta\u0142o?
         </Text>

@@ -66,12 +66,11 @@ export default function ReportLocationScreen() {
     >
       <StatusBar style="light" />
       <SafeAreaView className="flex-1">
-        <View className="flex-1 px-6 pb-10">
-          <View className="flex-row items-center justify-between pt-4">
+        <View className="flex-1 px-5 py-6">
+          <View className="rounded-xl border border-[rgba(61,96,143,0.28)] bg-[rgba(6,19,44,0.95)] px-3 py-4 flex-row items-center">
             <TouchableOpacity
-              accessibilityLabel="Powrót"
-              className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
               activeOpacity={0.85}
+              className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
               onPress={() => {
                 if (data.componentIndex === 0) {
                   router.back();
@@ -88,9 +87,10 @@ export default function ReportLocationScreen() {
                 color="#F5F8FF"
               />
             </TouchableOpacity>
-            <View className="flex-1 pl-4">
-              <Text className="text-xl font-semibold text-[#F5F8FF]">
-                Ludzie uzbrojeni
+
+            <View className="ml-4 flex-1">
+              <Text className="text-lg font-semibold text-[#F5F8FF]">
+                Report Title
               </Text>
               <View className="mt-2 flex-row items-center gap-2">
                 {data.componentsIdentifiers.map((indentifier, index) => (

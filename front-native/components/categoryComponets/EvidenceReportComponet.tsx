@@ -166,7 +166,7 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
       onContentSizeChange={handleContentSizeChange}
       keyboardShouldPersistTaps="handled"
     >
-      <View className="mt-10">
+      <View className="">
         <Text className="text-2xl font-semibold text-[#F5F8FF]">
           Zdj\u0119cie
         </Text>
@@ -262,7 +262,7 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
   };
 
   return (
-    <View className="flex-1 bg-transparent px-4 py-6">
+    <View className="flex-1 bg-transparent px-3 mt-10">
       {renderScrollArea()}
 
       <TouchableOpacity
