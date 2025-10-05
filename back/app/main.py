@@ -15,7 +15,11 @@ def create_app() -> FastAPI:
     
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  
+            allow_origins=[
+        "http://localhost:3000",  # your local frontend
+        "https://civisafe.online",  # production
+        "https://www.civisafe.online"
+    ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
