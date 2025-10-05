@@ -89,8 +89,8 @@ export default function ConfirmReportComponent() {
   }, [data]);
 
   return (
-    <View className="flex-1 bg-[#02102F] px-4 py-6">
-      <View className="flex-1 rounded-[32px] border border-[rgba(61,96,143,0.28)] bg-[rgba(6,19,44,0.95)] px-5 py-6">
+    <View className="flex-1 bg-[#02102F]  py-6">
+      <View className="flex-1 rounded-[32px] border border-[transparent] bg-[rgba(6,19,44,0.95)] px-5 py-6">
         <View className="flex-row items-center">
           <TouchableOpacity
             activeOpacity={0.85}
@@ -123,7 +123,7 @@ export default function ConfirmReportComponent() {
           </View>
         </View>
 
-        <View className="mt-6 h-px bg-[rgba(61,96,143,0.35)]" />
+        <View className="mt-6 -mx-5 h-px bg-[rgba(61,96,143,0.35)]" />
 
         <View className="mt-8">
           <Text className="text-2xl font-semibold text-[#F5F8FF]">
