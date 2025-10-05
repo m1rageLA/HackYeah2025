@@ -1,10 +1,18 @@
 ﻿import React, { useCallback } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import {
+  SafeAreaView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useForm } from '@/app/context/FormContext';
 import { TIME_OPTIONS } from '@/components/categoryComponets/TimeReportComponent';
+import { LinearGradient } from 'expo-linear-gradient';
+import { cssInterop } from 'nativewind';
 
 type ProgressStep = 'completed' | 'current' | 'upcoming';
 
@@ -51,6 +59,10 @@ const getBarColor = (step: ProgressStep) => {
   }
 };
 
+const GradientBackground = cssInterop(LinearGradient, {
+  className: 'style',
+});
+
 export default function ConfirmReportComponent() {
   const notice = DEFAULT_PRIVACY_NOTICE;
   const router = useRouter();
@@ -89,89 +101,97 @@ export default function ConfirmReportComponent() {
   }, [data]);
 
   return (
-    <View className="flex-1 bg-[#02102F]  py-6">
-      <View className="flex-1 rounded-[32px] border border-[transparent] bg-[rgba(6,19,44,0.95)] px-5 py-6">
-        <View className="flex-row items-center">
-          <TouchableOpacity
-            activeOpacity={0.85}
-            className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
-            onPress={() => router.back()}
-          >
-            <MaterialCommunityIcons
-              name="arrow-left"
-              size={22}
-              color="#F5F8FF"
-            />
-          </TouchableOpacity>
+    <GradientBackground
+      colors={['#051230', '#020713']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      className="flex-1"
+    >
+      <SafeAreaView className="flex-1">
+        <View className="flex-1 px-5 py-6">
+          <View className="rounded-xl border border-[rgba(61,96,143,0.28)] bg-[rgba(6,19,44,0.95)] px-3 py-4 flex-row items-center">
+            <TouchableOpacity
+              activeOpacity={0.85}
+              className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
+              onPress={() => {
+                router.back();
+              }}
+            >
+              <MaterialCommunityIcons
+                name="arrow-left"
+                size={22}
+                color="#F5F8FF"
+              />
+            </TouchableOpacity>
 
-          <View className="ml-4 flex-1">
-            <Text className="text-lg font-semibold text-[#F5F8FF]">
-              Report Title
-            </Text>
-            <View className="mt-2 flex-row items-center gap-2">
-              {data.componentsIdentifiers.map((indentifier, index) => (
+            <View className="ml-4 flex-1">
+              <Text className="text-lg font-semibold text-[#F5F8FF]">
+                Report Title
+              </Text>
+              <View className="mt-2 flex-row items-center gap-2">
+                {data.componentsIdentifiers.map((indentifier, index) => (
+                  <View
+                    key={index}
+                    className={`h-1 flex-1 rounded-full ${
+                      index <= data.componentIndex
+                        ? 'bg-[#3C8CFF]'
+                        : 'bg-[rgba(95,124,168,0.4)]'
+                    }`}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+          <View className="px-3 flex flex-1 mt-10">
+            <View className="">
+              <Text className="text-2xl font-semibold text-[#F5F8FF]">
+                PlaceHolder Title
+              </Text>
+              <Text className="mt-2 text-base text-[#8EA1C1]">
+                PlaceHolder SubTitle
+              </Text>
+            </View>
+
+            <View className="mt-6 rounded-2xl border border-[rgba(126,149,190,0.35)] bg-[rgba(16,31,65,0.85)] px-5 py-5">
+              {makeSummaryItems().map((item, index) => (
                 <View
-                  key={index}
-                  className={`h-1 flex-1 rounded-full ${
-                    index <= data.componentIndex
-                      ? 'bg-[#3C8CFF]'
-                      : 'bg-[rgba(95,124,168,0.4)]'
-                  }`}
-                />
+                  key={`${item.label}-${index}`}
+                  className={index > 0 ? 'mt-4' : undefined}
+                >
+                  <Text className="text-[11px] uppercase tracking-[0.25em] text-[#6D7BA0]">
+                    {item.label}
+                  </Text>
+                  <Text className="mt-1 text-[12px] text-base text-[#D5E2FF]">
+                    {item.value}
+                  </Text>
+                </View>
               ))}
             </View>
-          </View>
-        </View>
 
-        <View className="mt-6 -mx-5 h-px bg-[rgba(61,96,143,0.35)]" />
-
-        <View className="mt-8">
-          <Text className="text-2xl font-semibold text-[#F5F8FF]">
-            PlaceHolder Title
-          </Text>
-          <Text className="mt-2 text-base text-[#8EA1C1]">
-            PlaceHolder SubTitle
-          </Text>
-        </View>
-
-        <View className="mt-6 rounded-2xl border border-[rgba(126,149,190,0.35)] bg-[rgba(16,31,65,0.85)] px-5 py-5">
-          {makeSummaryItems().map((item, index) => (
-            <View
-              key={`${item.label}-${index}`}
-              className={index > 0 ? 'mt-4' : undefined}
+            <View className="flex-1 " />
+            <TouchableOpacity
+              activeOpacity={0.88}
+              className="h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
+              onPress={() => router.replace('/')}
             >
-              <Text className="text-[11px] uppercase tracking-[0.25em] text-[#6D7BA0]">
-                {item.label}
-              </Text>
-              <Text className="mt-1 text-[12px] text-base text-[#D5E2FF]">
-                {item.value}
+              <Text className="text-base font-semibold text-white">Zgłoś</Text>
+            </TouchableOpacity>
+
+            <View className="mt-6 flex-row items-start gap-3 rounded-2xl border border-[rgba(88,108,156,0.45)] bg-[rgba(11,26,65,0.85)] px-3 py-2">
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-[rgba(26,52,102,0.85)]">
+                <MaterialCommunityIcons
+                  name="shield-check"
+                  size={22}
+                  color="#8CB4FF"
+                />
+              </View>
+              <Text className="flex-1 text-[10px] leading-5 text-[#9EB2D0]">
+                {notice}
               </Text>
             </View>
-          ))}
-        </View>
-
-        <View className="flex-1 " />
-        <TouchableOpacity
-          activeOpacity={0.88}
-          className="mt-8 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF] shadow-[0px_12px_24px_rgba(30,91,255,0.35)]"
-          onPress={() => router.replace('/')}
-        >
-          <Text className="text-base font-semibold text-white">Zgłoś</Text>
-        </TouchableOpacity>
-
-        <View className="mt-6 flex-row items-start gap-3 rounded-2xl border border-[rgba(88,108,156,0.45)] bg-[rgba(11,26,65,0.85)] px-3 py-2">
-          <View className="h-10 w-10 items-center justify-center rounded-full bg-[rgba(26,52,102,0.85)]">
-            <MaterialCommunityIcons
-              name="shield-check"
-              size={22}
-              color="#8CB4FF"
-            />
           </View>
-          <Text className="flex-1 text-[10px] leading-5 text-[#9EB2D0]">
-            {notice}
-          </Text>
         </View>
-      </View>
-    </View>
+      </SafeAreaView>
+    </GradientBackground>
   );
 }

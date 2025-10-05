@@ -31,9 +31,10 @@ const PICK_ERROR =
 const BUTTON_HEIGHT = 56;
 const BUTTON_BOTTOM_INSET = 24;
 const FADE_GAP = 12;
-const FADE_LENGTH = 120;
-const DEFAULT_FADE_START = 0.72;
-const MASK_COLORS = ['rgba(0,0,0,1)', 'rgba(0,0,0,1)', 'rgba(0,0,0,0)'];
+// const FADE_LENGTH = 30;
+const DEFAULT_FADE_START = 0.7;
+const FADE_LENGTH = 300;
+const MASK_COLORS = ['rgba(0,0,0,1)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.0)'];
 
 export default function EvidenceReportComponet({ onContinue }: Props) {
   const [selectedAsset, setSelectedAsset] =
@@ -168,10 +169,10 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
     >
       <View className="">
         <Text className="text-2xl font-semibold text-[#F5F8FF]">
-          Zdj\u0119cie
+          PlaceHolder Title
         </Text>
         <Text className="mt-2 text-base text-[#8EA1C1]">
-          Dodaj zdj\u0119cie, je\u015bli jest dost\u0119pne.
+          PlaceHolder SubTitle
         </Text>
       </View>
 
@@ -263,15 +264,16 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
 
   return (
     <View className="flex-1 bg-transparent px-3 mt-10">
-      {renderScrollArea()}
-
-      <TouchableOpacity
-        activeOpacity={0.88}
-        className="absolute left-0 right-0 bottom-0 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
-        onPress={() => trigger(handleContinue)}
-      >
-        <Text className="text-base font-semibold text-white">Continue</Text>
-      </TouchableOpacity>
+      <View className="relative flex-1 bg-transparent">
+        {renderScrollArea()}
+        <TouchableOpacity
+          activeOpacity={0.88}
+          className="absolute left-0 right-0 bottom-0 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
+          onPress={() => trigger(handleContinue)}
+        >
+          <Text className="text-base font-semibold text-white">Continue</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

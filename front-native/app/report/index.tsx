@@ -90,7 +90,7 @@ export default function ReportLocationScreen() {
 
             <View className="ml-4 flex-1">
               <Text className="text-lg font-semibold text-[#F5F8FF]">
-                Report Title
+                {data.category}
               </Text>
               <View className="mt-2 flex-row items-center gap-2">
                 {data.componentsIdentifiers.map((indentifier, index) => (

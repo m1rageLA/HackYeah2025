@@ -1,6 +1,17 @@
-﻿import React, { useCallback, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+﻿import React, { useCallback, useMemo, useState } from 'react';
+import MaskedView from '@react-native-masked-view/masked-view';
+import {
+  LayoutChangeEvent,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useForm } from '@/app/context/FormContext';
 
 type TimeOptionValue =
@@ -61,13 +72,31 @@ const trigger = (callback?: () => void) => {
   requestAnimationFrame(callback);
 };
 
+const BUTTON_HEIGHT = 56;
+const BUTTON_BOTTOM_INSET = 24;
+const BUTTON_HORIZONTAL_INSET = 12;
+const FADE_GAP = 12;
+const DEFAULT_FADE_START = 0.7;
+const FADE_LENGTH = 300;
+const MASK_COLORS = ['rgba(0,0,0,1)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.0)'];
+
 export default function TimeReportComponent({
   onContinue,
   initialValue = 'now',
 }: Props) {
   const [selected, setSelected] = useState<TimeOptionValue>(initialValue);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
 
   const { data, updateData } = useForm();
+
+  const handleScrollViewLayout = useCallback((event: LayoutChangeEvent) => {
+    setScrollViewHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const handleContentSizeChange = useCallback((_: number, height: number) => {
+    setContentHeight(height);
+  }, []);
 
   const handleContinue = useCallback(
     (time: TimeOptionValue) => {
@@ -79,14 +108,62 @@ export default function TimeReportComponent({
     [data, updateData, onContinue],
   );
 
-  return (
-    <View className="flex-1 px-3 mt-10">
+  const scrollBottomInset = BUTTON_HEIGHT + BUTTON_BOTTOM_INSET + FADE_GAP;
+  const isOverflowing =
+    contentHeight > scrollViewHeight && scrollViewHeight > 0;
+
+  const fadeStartLocation = useMemo(() => {
+    if (!isOverflowing || !scrollViewHeight) {
+      return DEFAULT_FADE_START;
+    }
+    const fadeBottomOffset = BUTTON_BOTTOM_INSET + FADE_GAP;
+    const available = scrollViewHeight - (fadeBottomOffset + FADE_LENGTH);
+    if (available <= 0) {
+      return DEFAULT_FADE_START;
+    }
+    const normalized = available / scrollViewHeight;
+    if (!Number.isFinite(normalized)) {
+      return DEFAULT_FADE_START;
+    }
+    const clamped = Math.min(0.92, Math.max(DEFAULT_FADE_START, normalized));
+    return clamped;
+  }, [isOverflowing, scrollViewHeight]);
+
+  const maskLocations = useMemo(
+    () => [0, fadeStartLocation, 1],
+    [fadeStartLocation],
+  );
+
+  const webMaskStyle = useMemo<ViewStyle | undefined>(() => {
+    if (!isOverflowing || Platform.OS !== 'web') {
+      return undefined;
+    }
+    const fadeStartPercentage = Math.round(fadeStartLocation * 100);
+    const gradient = `linear-gradient(to bottom, rgba(0,0,0,1) ${fadeStartPercentage}%, rgba(0,0,0,0) 100%)`;
+    const style: ViewStyle = {};
+    (style as any).maskImage = gradient;
+    (style as any).WebkitMaskImage = gradient;
+    return style;
+  }, [fadeStartLocation, isOverflowing]);
+
+  const renderScrollView = () => (
+    <ScrollView
+      style={styles.scrollView}
+      contentContainerStyle={[
+        styles.scrollContent,
+        { paddingBottom: scrollBottomInset },
+      ]}
+      showsVerticalScrollIndicator={false}
+      onLayout={handleScrollViewLayout}
+      onContentSizeChange={handleContentSizeChange}
+      keyboardShouldPersistTaps="handled"
+    >
       <View className="">
         <Text className="text-2xl font-semibold text-[#F5F8FF]">
-          Kiedy to si\u0119 sta\u0142o?
+          PlaceHolder Title
         </Text>
         <Text className="mt-2 text-base text-[#8EA1C1]">
-          Dodaj zdj\u0119cie, je\u015bli jest dost\u0119pne
+          PlaceHolder SubTitle
         </Text>
       </View>
 
@@ -147,12 +224,54 @@ export default function TimeReportComponent({
           },
         )}
       </View>
+    </ScrollView>
+  );
 
-      <View className="mt-auto pt-10">
+  const renderScrollArea = () => {
+    if (Platform.OS === 'web') {
+      if (!isOverflowing) {
+        return renderScrollView();
+      }
+      return (
+        <View style={[styles.maskWrapper, webMaskStyle]}>
+          {renderScrollView()}
+        </View>
+      );
+    }
+
+    if (!isOverflowing) {
+      return renderScrollView();
+    }
+
+    return (
+      <MaskedView
+        style={styles.maskWrapper}
+        maskElement={
+          <LinearGradient
+            colors={MASK_COLORS}
+            locations={maskLocations}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.maskGradient}
+          />
+        }
+      >
+        {renderScrollView()}
+      </MaskedView>
+    );
+  };
+
+  return (
+    <View className="flex-1 mt-10 px-3">
+      <View
+        className="relative flex-1 bg-transparent"
+        style={styles.cardContainer}
+      >
+        {renderScrollArea()}
         <TouchableOpacity
           activeOpacity={0.88}
-          className="h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
-          onPress={() => handleContinue(selected)}
+          className="absolute left-0 right-0 bottom-0 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
+          onPress={() => trigger(() => handleContinue(selected))}
         >
           <Text className="text-base font-semibold text-white">Continue</Text>
         </TouchableOpacity>
@@ -160,3 +279,21 @@ export default function TimeReportComponent({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 0,
+  },
+  maskWrapper: {
+    flex: 1,
+  },
+  maskGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cardContainer: {
+    overflow: 'hidden',
+  },
+});

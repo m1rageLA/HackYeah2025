@@ -10,6 +10,7 @@ export interface FormData {
   componentsIdentifiers: string[];
   componentIndex: number;
   data?: Record<string, unknown>;
+  category: string;
 }
 
 export type FormUpdater =
@@ -28,16 +29,20 @@ export const FormProvider = ({
   initialState,
 }: {
   children: ReactNode;
+
   initialState?: FormData;
 }) => {
   const [data, setData] = useState<FormData>(
-    initialState || { componentsIdentifiers: [], componentIndex: 0 },
+    initialState || {
+      componentsIdentifiers: [],
+      componentIndex: 0,
+      category: '',
+    },
   );
 
   const updateData = useCallback((updater: FormUpdater) => {
     setData((previous) => {
-      const patch =
-        typeof updater === 'function' ? updater(previous) : updater;
+      const patch = typeof updater === 'function' ? updater(previous) : updater;
       return { ...previous, ...patch };
     });
   }, []);

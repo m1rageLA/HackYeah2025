@@ -19,6 +19,8 @@ export const DESCRIPTION_COMPONENT = 'description_comp';
 export const TIME_COMPONENT = 'time_comp';
 
 export const ARMED_SOLIDERS = 'armed_soldiers';
+export const DRONES = 'drones';
+export const OTHER = 'other';
 
 const categoryReportMap: Record<string, FormData> = {
   [ARMED_SOLIDERS]: {
@@ -28,8 +30,35 @@ const categoryReportMap: Record<string, FormData> = {
       EVIDENCE_COMPONENT,
       TIME_COMPONENT,
     ],
+    category: 'Ludzie uzbrojeni',
     componentIndex: 0,
   },
+  [DRONES]: {
+    data: {},
+    componentsIdentifiers: [
+      LOCATION_COMPONENT,
+      EVIDENCE_COMPONENT,
+      TIME_COMPONENT,
+    ],
+    category: 'Drony',
+    componentIndex: 0,
+  },
+  [OTHER]: {
+    data: {},
+    componentsIdentifiers: [
+      LOCATION_COMPONENT,
+      EVIDENCE_COMPONENT,
+      TIME_COMPONENT,
+    ],
+    category: 'Inne',
+    componentIndex: 0,
+  },
+};
+
+const categoryDescrip: Record<string, string> = {
+  [ARMED_SOLIDERS]: 'Armed soliders opis',
+  [DRONES]: 'Drony opis',
+  [OTHER]: 'Other opis',
 };
 
 export default function MainScreen() {
@@ -81,27 +110,25 @@ export default function MainScreen() {
             </Text>
 
             <View className="mt-10 gap-4">
-              {categories.map((category) => (
+              {Object.entries(categoryReportMap).map(([key, item]) => (
                 <TouchableOpacity
-                  key={category}
+                  key={key}
                   activeOpacity={0.9}
                   className="rounded-2xl bg-[#0B1F3A] px-5 py-6"
                   onPress={() =>
                     router.push({
                       pathname: '/report',
                       params: {
-                        initialState: JSON.stringify(
-                          categoryReportMap[ARMED_SOLIDERS],
-                        ),
+                        initialState: JSON.stringify(item),
                       },
                     })
                   }
                 >
                   <Text className="text-lg font-semibold text-[#EBF3FF]">
-                    {category}
+                    {item.category}
                   </Text>
                   <Text className="mt-2 text-sm text-[#7D90A7]">
-                    Placeholder opis dla tej kategorii.
+                    {categoryDescrip[key]}
                   </Text>
                 </TouchableOpacity>
               ))}
