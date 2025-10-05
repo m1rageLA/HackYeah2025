@@ -19,7 +19,7 @@ def create_app() -> FastAPI:
         "http://localhost:3000",  # your local frontend
         "https://civisafe.online",  # production
         "https://www.civisafe.online",
-        "https://front-web-tan.vercel.app/"
+        "https://front-web-tan.vercel.app"
     ],
         allow_credentials=True,
         allow_methods=["*"],
