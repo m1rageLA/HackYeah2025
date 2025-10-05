@@ -150,6 +150,7 @@ export default function ConfirmReportComponent() {
           ))}
         </View>
 
+        <View className="flex-1 " />
         <TouchableOpacity
           activeOpacity={0.88}
           className="mt-8 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF] shadow-[0px_12px_24px_rgba(30,91,255,0.35)]"
