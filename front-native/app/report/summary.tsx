@@ -13,6 +13,7 @@ import { useForm } from '@/app/context/FormContext';
 import { TIME_OPTIONS } from '@/components/categoryComponets/TimeReportComponent';
 import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
+import * as FileSystem from 'expo-file-system';
 
 type ProgressStep = 'completed' | 'current' | 'upcoming';
 
@@ -63,15 +64,57 @@ const GradientBackground = cssInterop(LinearGradient, {
   className: 'style',
 });
 
+export async function convertFileToBase64(file: {
+  uri: string;
+  mimeType: string;
+  fileName: string;
+}) {
+  try {
+    let localUri = file.uri;
+
+    // 1️⃣ Handle blob: URIs (e.g. from web)
+    if (file.uri.startsWith('blob:')) {
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onerror = reject;
+        reader.onload = () => resolve(reader.result as string);
+      });
+
+      reader.readAsDataURL(blob);
+      const dataUrl = await base64Promise;
+      const base64 = dataUrl.split(',')[1];
+
+      return {
+        name: file.fileName,
+        type: file.mimeType,
+        base64: `data:${file.mimeType};base64,${base64}`,
+      };
+    }
+
+    // 2️⃣ Handle file:// URIs (native)
+    const base64 = await FileSystem.readAsStringAsync(localUri, {
+      encoding: 'base64', // ✅ string literal works
+    });
+
+    return {
+      name: file.fileName,
+      type: file.mimeType,
+      base64: `data:${file.mimeType};base64,${base64}`,
+    };
+  } catch (error) {
+    console.error('Error converting file to base64:', error);
+    throw error;
+  }
+}
+
 export default function ConfirmReportComponent() {
   const notice = DEFAULT_PRIVACY_NOTICE;
   const router = useRouter();
 
   const { data } = useForm();
-
-  const hello = {
-    hello: 'world',
-  };
 
   const makeSummaryItems = useCallback((): SummaryItem[] => {
     const labelsValue = Object.entries(data.data || {}).map(
@@ -99,6 +142,30 @@ export default function ConfirmReportComponent() {
     );
     return labelsValue;
   }, [data]);
+
+  const handleSumbit = useCallback(async () => {
+    console.log(
+      'data to submit',
+      await convertFileToBase64(data.data!.evidence as any),
+    );
+    fetch('http://34.57.50.103:8000/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: data.category,
+        data: {
+          ...data.data,
+          evidence: data.data
+            ? await convertFileToBase64(data.data.evidence as any)
+            : null,
+        },
+        geo_point: data.data?.locationCoordinates,
+      }),
+    });
+    router.replace('/');
+  }, [data, router]);
 
   return (
     <GradientBackground
@@ -172,7 +239,7 @@ export default function ConfirmReportComponent() {
             <TouchableOpacity
               activeOpacity={0.88}
               className="h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
-              onPress={() => router.replace('/')}
+              onPress={() => handleSumbit()}
             >
               <Text className="text-base font-semibold text-white">Zgłoś</Text>
             </TouchableOpacity>
