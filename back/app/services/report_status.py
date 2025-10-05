@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Optional
+from typing import Dict, Iterable, Optional
 
 from ..repositories.firebase_report_status import FirebaseReportStatusRepository
 from ..repositories.protocols import ReportRepository, ReportStatusRepository
@@ -55,6 +55,16 @@ class ReportStatusService:
 
     def get_status(self, report_id: str) -> Optional[ReportStatus]:
         return self._status_repository.get(report_id)
+
+
+    def get_status_map(self, report_ids: Iterable[str]) -> Dict[str, ReportStatus]:
+        """Return the latest status for each provided report id."""
+        statuses: Dict[str, ReportStatus] = {}
+        for report_id in report_ids:
+            status = self._status_repository.get(report_id)
+            if status is not None:
+                statuses[report_id] = status
+        return statuses
 
 
 @lru_cache

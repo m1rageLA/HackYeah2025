@@ -5,6 +5,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from .report_status import ReportStatus
+
 
 class GeoPoint(BaseModel):
     latitude: float = Field(..., ge=-90.0, le=90.0)
@@ -23,6 +25,7 @@ class Report(BaseModel):
     data: dict[str, Any]
     geo_point: Optional[GeoPoint] = None
     user_id: Optional[str] = None
+    status: Optional[ReportStatus] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

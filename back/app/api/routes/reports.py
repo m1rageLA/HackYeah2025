@@ -44,11 +44,22 @@ async def submit_report(
 async def list_reports(
     _supervisor_id: str = Depends(require_supervisor_identity),
     service: ReportService = Depends(get_report_service),
+    status_service: ReportStatusService = Depends(get_report_status_service),
 ) -> list[Report]:
     try:
-        return await run_in_threadpool(service.list_reports)
+        reports = await run_in_threadpool(service.list_reports)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    if not reports:
+        return []
+
+    try:
+        status_map = await run_in_threadpool(status_service.get_status_map, [report.id for report in reports])
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    return [report.copy(update={"status": status_map.get(report.id)}) for report in reports]
 
 
 @router.patch(
