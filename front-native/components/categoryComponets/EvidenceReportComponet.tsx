@@ -168,11 +168,9 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
       keyboardShouldPersistTaps="handled"
     >
       <View className="">
-        <Text className="text-2xl font-semibold text-[#F5F8FF]">
-          PlaceHolder Title
-        </Text>
+        <Text className="text-2xl font-semibold text-[#F5F8FF]">Zdjęcie</Text>
         <Text className="mt-2 text-base text-[#8EA1C1]">
-          PlaceHolder SubTitle
+          Dodaj zdjęcie, jeśli jest dostępne
         </Text>
       </View>
 
@@ -271,7 +269,7 @@ export default function EvidenceReportComponet({ onContinue }: Props) {
           className="absolute left-0 right-0 bottom-0 h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
           onPress={() => trigger(handleContinue)}
         >
-          <Text className="text-base font-semibold text-white">Continue</Text>
+          <Text className="text-base font-semibold text-white">Kontynuuj</Text>
         </TouchableOpacity>
       </View>
     </View>

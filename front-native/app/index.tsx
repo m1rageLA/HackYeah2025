@@ -56,9 +56,9 @@ const categoryReportMap: Record<string, FormData> = {
 };
 
 const categoryDescrip: Record<string, string> = {
-  [ARMED_SOLIDERS]: 'Armed soliders opis',
-  [DRONES]: 'Drony opis',
-  [OTHER]: 'Other opis',
+  [ARMED_SOLIDERS]: 'Zgłoś obecność uzbrojonych osób lub żołnierzy w okolicy.',
+  [DRONES]: 'Zgłoś zauważone drony – rozpoznawcze lub kamikadze.',
+  [OTHER]: 'Zgłoś inne nietypowe lub niebezpieczne zdarzenia.',
 };
 
 export default function MainScreen() {

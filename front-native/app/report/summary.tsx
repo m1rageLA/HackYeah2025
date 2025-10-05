@@ -1,13 +1,21 @@
-﻿import React, { useCallback } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  ActivityIndicator,
+  Animated,
   SafeAreaView,
   StatusBar,
   Text,
   TouchableOpacity,
   View,
+  StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRoute } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { useForm } from '@/app/context/FormContext';
 import { TIME_OPTIONS } from '@/components/categoryComponets/TimeReportComponent';
@@ -15,30 +23,35 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { cssInterop } from 'nativewind';
 import * as FileSystem from 'expo-file-system';
 
+const SUBMIT_REDIRECT_DELAY_MS = 1800;
+const FETCH_TIMEOUT_MS = 12000;
+
+const GradientBackground = cssInterop(LinearGradient, {
+  className: 'style',
+});
+const AnimatedView = cssInterop(Animated.View, {
+  className: 'style',
+});
+
 type ProgressStep = 'completed' | 'current' | 'upcoming';
 
-interface SummaryItem {
+type SummaryItem = {
   label: string;
   value: string;
-}
+};
 
-interface Props {
-  reportTitle?: string;
-  summaryTitle?: string;
-  summarySubtitle?: string;
-  summaryItems?: SummaryItem[];
-  privacyNotice?: string;
-  continueLabel?: string;
-  progress?: ProgressStep[];
-  onBack?: () => void;
-  onContinue?: () => void;
-}
+type SubmissionState = 'idle' | 'loading' | 'success' | 'error';
+
+type Coordinate = {
+  latitude: number;
+  longitude: number;
+};
 
 const DEFAULT_SUMMARY_ITEMS: SummaryItem[] = [
   { label: 'Lokalizacja', value: 'obok mnie' },
   { label: 'Zdarzenie', value: 'ludzie uzbrojeni' },
   { label: 'Kiedy', value: 'teraz' },
-  { label: 'Co widzia\u0142e\u015b', value: 'uzbrojeni \u017co\u0142nierze' },
+  { label: 'Co widziales', value: 'uzbrojeni zolnierze' },
 ];
 
 const DEFAULT_PRIVACY_NOTICE =
@@ -60,10 +73,6 @@ const getBarColor = (step: ProgressStep) => {
   }
 };
 
-const GradientBackground = cssInterop(LinearGradient, {
-  className: 'style',
-});
-
 export async function convertFileToBase64(file: {
   uri: string;
   mimeType: string;
@@ -72,7 +81,6 @@ export async function convertFileToBase64(file: {
   try {
     let localUri = file.uri;
 
-    // 1️⃣ Handle blob: URIs (e.g. from web)
     if (file.uri.startsWith('blob:')) {
       const response = await fetch(file.uri);
       const blob = await response.blob();
@@ -94,9 +102,8 @@ export async function convertFileToBase64(file: {
       };
     }
 
-    // 2️⃣ Handle file:// URIs (native)
     const base64 = await FileSystem.readAsStringAsync(localUri, {
-      encoding: 'base64', // ✅ string literal works
+      encoding: 'base64',
     });
 
     return {
@@ -116,6 +123,13 @@ export default function ConfirmReportComponent() {
 
   const { data } = useForm();
 
+  const [submissionState, setSubmissionState] =
+    useState<SubmissionState>('idle');
+  const [overlayVisible, setOverlayVisible] = useState(false);
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const statusScale = useRef(new Animated.Value(0)).current;
+  const redirectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const makeSummaryItems = useCallback((): SummaryItem[] => {
     const labelsValue = Object.entries(data.data || {}).map(
       ([key, dataValue]) => {
@@ -131,41 +145,168 @@ export default function ConfirmReportComponent() {
           case 'evidence':
             return {
               label: 'Dowody',
-              value: dataValue ? 'Dodano zdjęcie' : 'Brak',
+              value: dataValue ? 'Dodano zdjecie' : 'Brak',
             };
           case 'locationMode':
-            return { label: 'Lokacja', value: 'yes' };
+            return {
+              label: 'Lokacja',
+              value: dataValue === 'manual' ? 'Wybrana recznie' : 'Obok mnie',
+            };
+          case 'locationCoordinates':
+            if (!dataValue) {
+              return { label: 'Koordynaty', value: 'Brak' };
+            }
+            try {
+              const point = dataValue as Coordinate;
+              return {
+                label: 'Koordynaty',
+                value: `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(
+                  5,
+                )}`,
+              };
+            } catch {
+              return { label: 'Koordynaty', value: 'Brak' };
+            }
           default:
             return { label: key, value: JSON.stringify(dataValue) };
         }
       },
     );
-    return labelsValue;
+    return labelsValue.length ? labelsValue : DEFAULT_SUMMARY_ITEMS;
   }, [data]);
 
-  const handleSumbit = useCallback(async () => {
-    console.log(
-      'data to submit',
-      await convertFileToBase64(data.data!.evidence as any),
-    );
-    fetch('https://civisafe.online/reports', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  const statusMeta = useMemo(
+    () => ({
+      loading: {
+        title: 'Wysylamy zgloszenie�',
+        subtitle: 'To potrwa tylko chwile.',
+        icon: 'cloud-upload',
+        iconColor: '#9EB2D0',
       },
-      body: JSON.stringify({
-        type: data.category,
-        data: {
-          ...data.data,
-          evidence: data.data
-            ? await convertFileToBase64(data.data.evidence as any)
-            : null,
-        },
-        geo_point: data.data?.locationCoordinates,
-      }),
-    });
-    router.replace('/');
-  }, [data, router]);
+      success: {
+        title: 'Dziekujemy! Zgloszenie wyslane',
+        subtitle: 'Za moment wrocisz na ekran glowny.',
+        icon: 'check-circle',
+        iconColor: '#85E6B0',
+      },
+      error: {
+        title: 'Ups! Nie udalo sie wyslac',
+        subtitle: 'Sprobuj ponownie po powrocie.',
+        icon: 'close-circle',
+        iconColor: '#FF9E7C',
+      },
+    }),
+    [],
+  );
+
+  const activeStatus =
+    submissionState === 'idle' ? null : statusMeta[submissionState];
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const animateOverlayIn = useCallback(() => {
+    overlayOpacity.setValue(0);
+    statusScale.setValue(0.85);
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+  }, [overlayOpacity, statusScale]);
+
+  const animateStatusPop = useCallback(() => {
+    Animated.spring(statusScale, {
+      toValue: 1,
+      friction: 6,
+      useNativeDriver: true,
+    }).start();
+  }, [statusScale]);
+
+  const scheduleRedirect = useCallback(() => {
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+    redirectTimeoutRef.current = setTimeout(() => {
+      router.replace('/');
+    }, SUBMIT_REDIRECT_DELAY_MS);
+  }, [router]);
+
+  const handleSubmit = useCallback(async () => {
+    if (submissionState === 'loading') {
+      return;
+    }
+
+    setOverlayVisible(true);
+    setSubmissionState('loading');
+    animateOverlayIn();
+
+    let image = null;
+    try {
+      image = data.data
+        ? await convertFileToBase64(data.data.evidence as any)
+        : null;
+    } catch (error) {
+      console.warn('Failed to convert evidence image', error);
+    }
+
+    const payload = {
+      type:
+        data.category === 'Ludzie uzbrojeni'
+          ? 'red'
+          : data.category === 'Drony'
+          ? 'orange'
+          : data.category === 'Other'
+          ? 'gray'
+          : 'yellow',
+      data: {
+        ...data.data,
+        evidence: image,
+      },
+      geo_point: data.data?.locationCoordinates,
+    };
+
+    try {
+      const response = await Promise.race([
+        fetch('https://civisafe.online/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Request timed out')),
+            FETCH_TIMEOUT_MS,
+          ),
+        ),
+      ]);
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      setSubmissionState('success');
+    } catch (error) {
+      console.warn('Report submission failed', error);
+      setSubmissionState('error');
+    } finally {
+      animateStatusPop();
+      scheduleRedirect();
+    }
+  }, [
+    animateOverlayIn,
+    animateStatusPop,
+    data,
+    scheduleRedirect,
+    submissionState,
+  ]);
 
   return (
     <GradientBackground
@@ -181,8 +322,9 @@ export default function ConfirmReportComponent() {
               activeOpacity={0.85}
               className="h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(122,167,255,0.25)] bg-[rgba(13,30,64,0.7)]"
               onPress={() => {
-                router.back();
+                trigger(() => router.back());
               }}
+              disabled={submissionState === 'loading'}
             >
               <MaterialCommunityIcons
                 name="arrow-left"
@@ -210,12 +352,12 @@ export default function ConfirmReportComponent() {
             </View>
           </View>
           <View className="px-3 flex flex-1 mt-10">
-            <View className="">
+            <View>
               <Text className="text-2xl font-semibold text-[#F5F8FF]">
-                PlaceHolder Title
+                Potwierdź zgłoszenie
               </Text>
               <Text className="mt-2 text-base text-[#8EA1C1]">
-                PlaceHolder SubTitle
+                Potwierdź aktywne zgłoszenie
               </Text>
             </View>
 
@@ -235,13 +377,18 @@ export default function ConfirmReportComponent() {
               ))}
             </View>
 
-            <View className="flex-1 " />
+            <View className="flex-1" />
             <TouchableOpacity
               activeOpacity={0.88}
-              className="h-14 items-center justify-center rounded-2xl bg-[#1E5BFF]"
-              onPress={() => handleSumbit()}
+              className={`h-14 items-center justify-center rounded-2xl ${
+                submissionState === 'loading'
+                  ? 'bg-[rgba(30,91,255,0.4)]'
+                  : 'bg-[#1E5BFF]'
+              }`}
+              disabled={submissionState === 'loading'}
+              onPress={() => handleSubmit()}
             >
-              <Text className="text-base font-semibold text-white">Zgłoś</Text>
+              <Text className="text-base font-semibold text-white">Zgloś</Text>
             </TouchableOpacity>
 
             <View className="mt-6 flex-row items-start gap-3 rounded-2xl border border-[rgba(88,108,156,0.45)] bg-[rgba(11,26,65,0.85)] px-3 py-2">
@@ -259,6 +406,50 @@ export default function ConfirmReportComponent() {
           </View>
         </View>
       </SafeAreaView>
+
+      {overlayVisible && activeStatus ? (
+        <AnimatedView
+          pointerEvents="none"
+          style={[styles.overlay, { opacity: overlayOpacity }]}
+        >
+          <View className="absolute inset-0 border-r-indigo-900/80" />
+          <View className="flex-1 items-center justify-center px-8">
+            <AnimatedView
+              style={{
+                transform: [{ scale: statusScale }],
+              }}
+              className="w-full items-center rounded-3xl border border-[rgba(80,110,168,0.45)] bg-cyan-950/90 px-6 py-10"
+            >
+              {submissionState === 'loading' ? (
+                <ActivityIndicator size="large" color="#A8C5FF" />
+              ) : (
+                <MaterialCommunityIcons
+                  name={activeStatus.icon as any}
+                  size={66}
+                  color={activeStatus.iconColor}
+                />
+              )}
+
+              <Text className="mt-6 text-center text-xl font-semibold text-[#F5F8FF]">
+                {activeStatus.title}
+              </Text>
+              <Text className="mt-2 text-center text-sm text-[#A1B6D8]">
+                {submissionState === 'loading'
+                  ? activeStatus.subtitle
+                  : `${activeStatus.subtitle}\nTrwa przekierowanie`}
+              </Text>
+            </AnimatedView>
+          </View>
+        </AnimatedView>
+      ) : null}
     </GradientBackground>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

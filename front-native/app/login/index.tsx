@@ -3,7 +3,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { cssInterop } from 'nativewind';
 import React, { use } from 'react';
-import { SafeAreaView, Text, TouchableOpacity, View } from 'react-native';
+import {
+  SafeAreaView,
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRootContext } from '../context/rootContext';
 
@@ -52,9 +58,18 @@ export default function LoginScreen() {
               onPress={handleContinue}
             >
               <View className="flex-row items-center justify-center gap-3">
-                <View className="h-[34px] w-[34px] items-center justify-center rounded-[8px] bg-[#D71920]">
-                  <Text className="text-lg font-bold text-[#F5F7FF]">PL</Text>
+                <View className="flex-row items-center justify-center gap-3">
+                  <Image
+                    source={require('./mobywatel_icon.png')}
+                    style={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 8,
+                      resizeMode: 'cover',
+                    }}
+                  />
                 </View>
+
                 <Text className="text-lg font-semibold text-[#F5F8FF]">
                   mObywatel
                 </Text>
