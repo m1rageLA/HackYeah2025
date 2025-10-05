@@ -1,7 +1,7 @@
 ﻿"""Protocol definitions for repository interfaces."""
 
 from datetime import datetime
-from typing import List, Optional, Protocol
+from typing import Iterable, List, Optional, Protocol
 
 from ..schemas.report import Report, ReportCreate
 from ..schemas.report_status import ReportStatus, ReportStatusValue
@@ -48,6 +48,10 @@ class UserRepository(Protocol):
 
     def get(self, user_id: str) -> Optional[AppUser]:
         """Return the user by identifier if it exists."""
+        ...
+
+    def get_many(self, user_ids: Iterable[str]) -> dict[str, AppUser]:
+        """Return users indexed by id for the provided identifiers."""
         ...
 
     def create(self, user_id: str, phone_hash: str, *, created_at: datetime, last_seen_at: datetime) -> AppUser:

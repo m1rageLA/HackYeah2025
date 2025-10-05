@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 try:
-    from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+    from starlette.middleware.proxy_headers import ProxyHeadersMiddleware # type: ignore
 except ImportError:  # pragma: no cover - optional dependency
     ProxyHeadersMiddleware = None
 

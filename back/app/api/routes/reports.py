@@ -13,6 +13,8 @@ from app.api.dependencies import (
 )
 from app.schemas.report import Report, ReportCreate
 from app.schemas.report_status import ReportStatus, ReportStatusUpdate
+from app.schemas.user import AppUser
+from app.services.identity import IdentityService, get_identity_service
 from app.services.report_status import ReportStatusService
 from app.services.reports import ReportService
 
@@ -45,6 +47,7 @@ async def list_reports(
     _supervisor_id: str = Depends(require_supervisor_identity),
     service: ReportService = Depends(get_report_service),
     status_service: ReportStatusService = Depends(get_report_status_service),
+    identity_service: IdentityService = Depends(get_identity_service),
 ) -> list[Report]:
     try:
         reports = await run_in_threadpool(service.list_reports)
@@ -59,7 +62,23 @@ async def list_reports(
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
-    return [report.copy(update={"status": status_map.get(report.id)}) for report in reports]
+    user_ids = {report.user_id for report in reports if report.user_id}
+    users_map: dict[str, AppUser] = {}
+    if user_ids:
+        try:
+            users_map = await run_in_threadpool(identity_service.get_users_map, tuple(user_ids))
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+    enriched: list[Report] = []
+    for report in reports:
+        user = users_map.get(report.user_id) if report.user_id else None
+        enriched.append(
+            report.copy(
+                update={"status": status_map.get(report.id), "user_reputation": user.reputation if user else None}
+            )
+        )
+    return enriched
 
 
 @router.patch(

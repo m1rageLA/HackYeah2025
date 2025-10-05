@@ -26,6 +26,7 @@ class Report(BaseModel):
     geo_point: Optional[GeoPoint] = None
     user_id: Optional[str] = None
     status: Optional[ReportStatus] = None
+    user_reputation: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

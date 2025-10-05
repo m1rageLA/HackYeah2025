@@ -1,7 +1,7 @@
 """Firestore-backed repository for application users."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Iterable, Optional
 
 from google.cloud import firestore
 
@@ -57,6 +57,14 @@ class FirebaseUserRepository(UserRepository):
         if not snapshot.exists:
             return None
         return _snapshot_to_user(snapshot)
+
+    def get_many(self, user_ids: Iterable[str]) -> dict[str, AppUser]:
+        results: dict[str, AppUser] = {}
+        for user_id in user_ids:
+            snapshot = self.collection.document(user_id).get()
+            if snapshot.exists:
+                results[user_id] = _snapshot_to_user(snapshot)
+        return results
 
     def create(self, user_id: str, phone_hash: str, *, created_at: datetime, last_seen_at: datetime) -> AppUser:
         document_ref = self.collection.document(user_id)

@@ -6,6 +6,7 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from typing import Iterable
 
 import jwt
 import phonenumbers
@@ -109,6 +110,10 @@ class IdentityService:
 
         refreshed = self._repository.touch_last_seen(user_id, datetime.now(tz=timezone.utc))
         return refreshed
+
+    def get_users_map(self, user_ids: Iterable[str]) -> dict[str, AppUser]:
+        """Return users indexed by id for the provided identifiers."""
+        return self._repository.get_many(tuple(user_ids))
 
     def adjust_reputation(self, user_id: str, delta: int) -> AppUser:
         """Adjust reputation score for the given user."""
