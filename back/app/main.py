@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
+# from starlette.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .api import api_router
 from .core.config import get_settings
@@ -14,10 +14,10 @@ def create_app() -> FastAPI:
     application = FastAPI(title=settings.app_name, debug=settings.debug)
     application.include_router(api_router)
 
-    application.add_middleware(
-        ProxyHeadersMiddleware,
-        trusted_hosts=["*"],
-    )
+    # application.add_middleware(
+    #     ProxyHeadersMiddleware,
+    #     trusted_hosts=["*"],
+    # )
 
     application.add_middleware(
         CORSMiddleware,
